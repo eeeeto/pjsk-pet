@@ -48,12 +48,22 @@ function normalizeStore() {
     if (!isDefault) {
       for (const cfg of [store.c1, store.c2]) {
         if (cfg && cfg.id && !store.charQuotes[cfg.id]) {
-          const char = CHARACTERS.find((c) => c.id === cfg.id);
-          store.charQuotes[cfg.id] = [...((char && char.quotes) || []), ...store.quotes];
+          // 旧版自定义词条迁移：只保留用户自己添加的词条
+          store.charQuotes[cfg.id] = [...store.quotes];
         }
       }
     }
     delete store.quotes;
+  }
+  // 旧存档清理：已有词条库移除角色自带台词，只保留颜文字与用户自定义词条
+  for (const [cid, list] of Object.entries(store.charQuotes)) {
+    if (!Array.isArray(list)) { delete store.charQuotes[cid]; continue; }
+    const char = CHARACTERS.find((c) => c.id === +cid);
+    if (char && Array.isArray(char.quotes) && char.quotes.length) {
+      const persona = new Set(char.quotes);
+      const cleaned = list.filter((q) => !persona.has(q));
+      if (cleaned.length !== list.length) store.charQuotes[cid] = cleaned;
+    }
   }
 }
 normalizeStore();
@@ -74,8 +84,8 @@ const costumeEntryOf = (cfg) => {
 /* 每角色词条库 */
 function getQuotes(charId) {
   if (!store.charQuotes[charId]) {
-    const char = CHARACTERS.find((c) => c.id === charId);
-    store.charQuotes[charId] = [...((char && char.quotes) || []), ...DEFAULT_QUOTES];
+    // 初始词条库只包含颜文字
+    store.charQuotes[charId] = [...DEFAULT_QUOTES];
     saveStore();
   }
   return store.charQuotes[charId];
@@ -523,9 +533,13 @@ function doRandomAction(pet) {
 
 function startWalk(pet) {
   const walkAnim = animName(pet.data, pet.prefix, "walk");
-  // 默认向左走；已经贴着左边界或偶尔（20%）向右走
-  let dir = -1;
-  if (pet.cfg.fx < 0.24 || Math.random() < 0.2) dir = 1;
+  // 默认朝向即前进方向：未翻转向左走，水平翻转后向右走
+  let dir = pet.cfg.flip ? 1 : -1;
+  // 已经贴着边界时改为朝屏幕内侧走
+  if (dir < 0 && pet.cfg.fx < 0.24) dir = 1;
+  if (dir > 0 && pet.cfg.fx > 0.76) dir = -1;
+  // 偶尔（20%）反向走
+  if (Math.random() < 0.2) dir = -dir;
   pet.walkLegs = 0;
   beginWalkLeg(pet, dir);
   playAnim(pet, walkAnim, true);
@@ -1442,8 +1456,7 @@ function renderQuoteSections() {
     sec.querySelector(".q-add").addEventListener("click", add);
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
     sec.querySelector(".q-reset").addEventListener("click", () => {
-      const persona = (char.quotes || []);
-      store.charQuotes[char.id] = [...persona, ...DEFAULT_QUOTES];
+      store.charQuotes[char.id] = [...DEFAULT_QUOTES];
       saveStore(); render(); toast(`${char.name} 的词条已恢复默认`);
     });
     render();

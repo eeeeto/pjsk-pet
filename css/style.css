@@ -532,6 +532,22 @@ body {
 }
 #chat-send:active { transform: scale(.95); }
 
+/* 梦向模式面板：两行输入框 + 喂食/发送 */
+.panel.yume-panel {
+  width: min(86%, 420px);
+  padding: 8px 10px 10px;
+}
+.chat-area {
+  width: 100%; box-sizing: border-box;
+  border: 1.5px solid #e0d4c0; border-radius: 12px;
+  padding: 8px 12px; font-size: 14px; line-height: 1.5;
+  resize: none; outline: none; background: rgba(255, 255, 255, .95);
+  font-family: inherit;
+}
+.chat-area:focus { border-color: var(--ui, #f28ab2); }
+.yume-btns { margin-top: 8px; }
+.yume-btns .btn { flex: 1; min-height: 38px; }
+
 /* 模式切换 */
 .mode-switch { display: flex; gap: 10px; }
 .mode-opt {
@@ -578,6 +594,7 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   /* 底部面板避让 iPhone 手势条 */
   #panels { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 8px; }
   .panel { flex: 1; max-width: 220px; }
+  .panel.yume-panel { flex: 0 1 auto; max-width: none; width: min(92%, 440px); }
 
   /* 弹窗贴满小屏 */
   .modal { align-items: flex-end; }

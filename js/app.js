@@ -1090,9 +1090,34 @@ async function enterMain() {
 function buildPanels() {
   const panels = $("#panels");
   panels.innerHTML = "";
+  const yume = store.mode === "yume";
+  // 梦向模式：聊天输入合并进面板，隐藏独立聊天条
+  $("#chat-bar").classList.toggle("hidden", yume);
   for (const slot of [1, 2]) {
     const pet = pets[slot];
     if (!pet) continue;
+    if (yume && slot === 1) {
+      // 梦向模式：两行输入框独占面板，下方「喂食 / 发送」两个按钮
+      const panel = document.createElement("div");
+      panel.className = "panel yume-panel";
+      panel.innerHTML = `
+        <textarea class="chat-area" rows="2" maxlength="120" placeholder="和 TA 说点什么吧…"></textarea>
+        <div class="panel-btns yume-btns">
+          <button class="btn feed-btn">🍪 喂食</button>
+          <button class="btn send-btn">发送</button>
+        </div>`;
+      panel.querySelector(".feed-btn").addEventListener("click", () => openFeedModal(slot));
+      const area = panel.querySelector(".chat-area");
+      const sendReply = () => {
+        const text = area.value.trim();
+        if (!text) return;
+        if (chatReply(text)) area.value = "";
+      };
+      panel.querySelector(".send-btn").addEventListener("click", sendReply);
+      area.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); } });
+      panels.appendChild(panel);
+      continue;
+    }
     const panel = document.createElement("div");
     panel.className = "panel";
     panel.innerHTML = `
@@ -1204,32 +1229,37 @@ function initModeSwitch() {
 }
 
 /* ---------- 房间聊天输入框 ---------- */
+// 发送一句话：随机（或梦向唯一）角色思考 1~2 秒后回复
+function chatReply(text) {
+  const active = [1, 2].filter((s) => pets[s]);
+  if (!active.length) { toast("还没有角色在房间里哦"); return false; }
+  // 多人时随机选一位回复；梦向模式只有角色1
+  const slot = active.length === 1 ? active[0] : pick(active);
+  const pet = pets[slot];
+  // 思考中 …（1~2 秒后回复）
+  speak(slot, "…", "think");
+  setTimeout(() => {
+    if (pets[slot] !== pet) return;
+    const list = getQuotes(pet.char.id);
+    if (!list.length) { speak(slot, "……"); return; }
+    const n = randInt(1, Math.min(3, list.length));
+    const pool = [...list];
+    const chosen = [];
+    for (let i = 0; i < n; i++) chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    speak(slot, chosen.join("，"));
+    const talk = animName(pet.data, pet.prefix, "talk");
+    if (talk && !pet.walkTarget) { playAnim(pet, talk, false); pet.pendingIdle = true; capOneShot(pet, talk, 2800); }
+  }, rand(1000, 2000));
+  return true;
+}
+
 function initChat() {
   const input = $("#chat-input");
   const send = $("#chat-send");
   const doSend = () => {
     const text = input.value.trim();
     if (!text) return;
-    const active = [1, 2].filter((s) => pets[s]);
-    if (!active.length) { toast("还没有角色在房间里哦"); return; }
-    // 多人时随机选一位回复；梦向模式只有角色1
-    const slot = active.length === 1 ? active[0] : pick(active);
-    const pet = pets[slot];
-    input.value = "";
-    // 思考中 …（1~2 秒后回复）
-    speak(slot, "…", "think");
-    setTimeout(() => {
-      if (pets[slot] !== pet) return;
-      const list = getQuotes(pet.char.id);
-      if (!list.length) { speak(slot, "……"); return; }
-      const n = randInt(1, Math.min(3, list.length));
-      const pool = [...list];
-      const chosen = [];
-      for (let i = 0; i < n; i++) chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-      speak(slot, chosen.join("，"));
-      const talk = animName(pet.data, pet.prefix, "talk");
-      if (talk && !pet.walkTarget) { playAnim(pet, talk, false); pet.pendingIdle = true; capOneShot(pet, talk, 2800); }
-    }, rand(1000, 2000));
+    if (chatReply(text)) input.value = "";
   };
   send.addEventListener("click", doSend);
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });

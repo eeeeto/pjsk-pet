@@ -994,6 +994,11 @@ function onCardClick(entry, card) {
   if (selectState.target === 1) {
     store.c1.id = entry.char.id;
     store.c1.spine = entry.spine;
+    // 新的角色1若与角色2是同一个角色（含不同服装），移除角色2
+    if (store.c2 && store.c2.id === entry.char.id) {
+      store.c2 = null;
+      toast("角色2与新的角色1相同，已移除");
+    }
     // 选完角色1后自动切换到角色2
     selectState.target = 2;
     document.querySelector('input[name="target"][value="2"]').checked = true;
@@ -1027,6 +1032,8 @@ function refreshCardSelection() {
 
 /* ---------- 主界面 ---------- */
 async function enterMain() {
+  // 保险：同一角色（含不同服装）不能同时出场
+  if (store.c2 && store.c2.id === store.c1.id) store.c2 = null;
   $("#select-screen").classList.add("hidden");
   $("#main-screen").classList.remove("hidden");
   initPixi();

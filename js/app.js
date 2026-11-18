@@ -13,6 +13,7 @@ const defaultStore = () => ({
   decoLibrary: [], // 挂件库 [{ name, src }]，全角色共用
   charQuotes: {},  // 每角色词条库 { [charId]: [词条] }
   loveQuotes: true, // 恋爱向词条分组（爱心/亲亲颜文字），默认开启
+  bgm: { on: true, volume: 0.4, custom: false }, // 背景音乐（两种模式通用；custom=已导入自定义 MP3）
 });
 
 let store = defaultStore();
@@ -34,6 +35,12 @@ function normalizeStore() {
   if (!store.charQuotes || typeof store.charQuotes !== "object") store.charQuotes = {};
   // 恋爱向开关：老存档没有该字段时默认开启
   if (typeof store.loveQuotes !== "boolean") store.loveQuotes = true;
+  // BGM 设置兜底
+  if (!store.bgm || typeof store.bgm !== "object") store.bgm = { on: true, volume: 0.4, custom: false };
+  if (typeof store.bgm.on !== "boolean") store.bgm.on = true;
+  if (typeof store.bgm.volume !== "number") store.bgm.volume = 0.4;
+  store.bgm.volume = Math.min(1, Math.max(0, store.bgm.volume));
+  if (typeof store.bgm.custom !== "boolean") store.bgm.custom = false;
   // 模式：非法值回落推角模式；梦向模式只能有角色1
   if (store.mode !== "oshi" && store.mode !== "yume") store.mode = "oshi";
   if (store.mode === "yume") store.c2 = null;
@@ -1265,6 +1272,82 @@ function initChat() {
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
 }
 
+/* ---------- BGM（两种模式通用） ---------- */
+let bgmAudio = null;
+let bgmUrl = null;
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open("pjsk-pet", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").put(val, key);
+    tx.oncomplete = () => { res(); db.close(); };
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("kv", "readonly");
+    const rq = tx.objectStore("kv").get(key);
+    rq.onsuccess = () => { res(rq.result); db.close(); };
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function idbDel(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").delete(key);
+    tx.oncomplete = () => { res(); db.close(); };
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+// 设置音源：优先用户导入的 MP3（IndexedDB），否则默认内置曲
+async function bgmSetSource() {
+  if (bgmUrl && bgmUrl.startsWith("blob:")) URL.revokeObjectURL(bgmUrl);
+  bgmUrl = null;
+  if (store.bgm.custom) {
+    try {
+      const blob = await idbGet("bgm");
+      if (blob) bgmUrl = URL.createObjectURL(blob);
+    } catch (e) { /* 读不到就回落默认 */ }
+  }
+  if (!bgmUrl) bgmUrl = "assets/bgm_daily.mp3";
+  if (bgmAudio) bgmAudio.src = bgmUrl;
+}
+
+function bgmPlay() {
+  if (!bgmAudio) return;
+  bgmAudio.volume = store.bgm.volume;
+  if (store.bgm.on && bgmAudio.paused) bgmAudio.play().catch(() => {});
+}
+function bgmStop() { if (bgmAudio && !bgmAudio.paused) bgmAudio.pause(); }
+
+function initBGM() {
+  if (bgmAudio) return;
+  bgmAudio = new Audio();
+  bgmAudio.loop = true;
+  bgmAudio.preload = "auto";
+  bgmSetSource();
+  // 浏览器自动播放限制：首次任意交互时尝试开始播放
+  const tryStart = () => {
+    bgmPlay();
+    if (store.bgm.on) window.removeEventListener("pointerdown", tryStart);
+  };
+  window.addEventListener("pointerdown", tryStart);
+  bgmPlay(); // 部分环境允许直接播放
+}
+
 function initSettings() {
   const modal = $("#settings-modal");
   $("#btn-settings").addEventListener("click", () => { syncSettingsUI(); modal.classList.remove("hidden"); });
@@ -1331,6 +1414,45 @@ function initSettings() {
     store.loveQuotes = e.target.checked;
     saveStore();
     toast(store.loveQuotes ? "恋爱向词条已开启 ♡" : "恋爱向词条已关闭");
+  });
+
+  // BGM（通用）
+  initBGM();
+  $("#set-bgm-on").addEventListener("change", (e) => {
+    store.bgm.on = e.target.checked;
+    saveStore();
+    if (store.bgm.on) bgmPlay(); else bgmStop();
+    toast(store.bgm.on ? "BGM 已开启 ♪" : "BGM 已关闭");
+  });
+  $("#set-bgm-vol").addEventListener("input", (e) => {
+    store.bgm.volume = +e.target.value;
+    if (bgmAudio) bgmAudio.volume = store.bgm.volume;
+    saveStore();
+  });
+  $("#set-bgm-import").addEventListener("click", () => $("#bgm-file").click());
+  $("#bgm-file").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 60 * 1024 * 1024) { toast("文件太大啦（超过 60MB）"); e.target.value = ""; return; }
+    try {
+      await idbSet("bgm", f);
+      store.bgm.custom = true;
+      saveStore();
+      await bgmSetSource();
+      if (store.bgm.on) bgmPlay();
+      syncSettingsUI();
+      toast("BGM 已更新 ♪");
+    } catch (err) { toast("导入失败，请重试"); }
+    e.target.value = "";
+  });
+  $("#set-bgm-reset").addEventListener("click", async () => {
+    try { await idbDel("bgm"); } catch (e2) { /* 忽略 */ }
+    store.bgm.custom = false;
+    saveStore();
+    await bgmSetSource();
+    if (store.bgm.on) bgmPlay();
+    syncSettingsUI();
+    toast("已恢复默认 BGM");
   });
 
   // 背景
@@ -1614,6 +1736,9 @@ function syncSettingsUI() {
   document.querySelectorAll("#ui-swatches .swatch").forEach((b) => b.classList.toggle("active", b.title && UI_COLORS.find((c) => c.color === store.ui && c.name === b.title)));
   $("#set-uicolor").value = store.ui;
   $("#set-love").checked = !!store.loveQuotes;
+  $("#set-bgm-on").checked = !!store.bgm.on;
+  $("#set-bgm-vol").value = store.bgm.volume;
+  $("#set-bgm-reset").hidden = !store.bgm.custom;
   applyModeUI();
   renderQuoteSections();
   renderAccList(1); renderAccList(2);

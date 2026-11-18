@@ -1329,22 +1329,40 @@ async function bgmSetSource() {
 function bgmPlay() {
   if (!bgmAudio) return;
   bgmAudio.volume = store.bgm.volume;
-  if (store.bgm.on && bgmAudio.paused) bgmAudio.play().catch(() => {});
+  if (store.bgm.on && bgmAudio.paused) {
+    const p = bgmAudio.play();
+    if (p && p.then) p.catch(() => {});
+  }
 }
 function bgmStop() { if (bgmAudio && !bgmAudio.paused) bgmAudio.pause(); }
+
+function updateBgmBtn() {
+  const b = $("#btn-bgm");
+  if (!b || !bgmAudio) return;
+  b.textContent = bgmAudio.paused ? "🔇" : "🎵";
+}
 
 function initBGM() {
   if (bgmAudio) return;
   bgmAudio = new Audio();
   bgmAudio.loop = true;
   bgmAudio.preload = "auto";
+  bgmAudio.setAttribute("playsinline", "");
+  bgmAudio.addEventListener("play", updateBgmBtn);
+  bgmAudio.addEventListener("pause", updateBgmBtn);
   bgmSetSource();
-  // 浏览器自动播放限制：首次任意交互时尝试开始播放
+  // 浏览器自动播放限制：任意交互（pointerdown/touchend/click）后持续尝试，直到真正播响才停止监听
   const tryStart = () => {
-    bgmPlay();
-    if (store.bgm.on) window.removeEventListener("pointerdown", tryStart);
+    if (store.bgm.on) bgmPlay();
+    if (!store.bgm.on || !bgmAudio.paused) {
+      window.removeEventListener("pointerdown", tryStart, true);
+      window.removeEventListener("touchend", tryStart, true);
+      document.removeEventListener("click", tryStart, true);
+    }
   };
-  window.addEventListener("pointerdown", tryStart);
+  window.addEventListener("pointerdown", tryStart, true);
+  window.addEventListener("touchend", tryStart, true);
+  document.addEventListener("click", tryStart, true);
   bgmPlay(); // 部分环境允许直接播放
 }
 
@@ -1418,10 +1436,23 @@ function initSettings() {
 
   // BGM（通用）
   initBGM();
+  // 主界面快捷按钮：点击即播放/暂停（自身手势可直接解锁音频）
+  $("#btn-bgm").addEventListener("click", () => {
+    if (!bgmAudio) initBGM();
+    if (bgmAudio.paused) {
+      store.bgm.on = true; saveStore(); bgmPlay();
+      toast("BGM 已开启 ♪");
+    } else {
+      store.bgm.on = false; saveStore(); bgmStop();
+      toast("BGM 已关闭");
+    }
+    updateBgmBtn();
+  });
   $("#set-bgm-on").addEventListener("change", (e) => {
     store.bgm.on = e.target.checked;
     saveStore();
     if (store.bgm.on) bgmPlay(); else bgmStop();
+    updateBgmBtn();
     toast(store.bgm.on ? "BGM 已开启 ♪" : "BGM 已关闭");
   });
   $("#set-bgm-vol").addEventListener("input", (e) => {
@@ -1442,7 +1473,15 @@ function initSettings() {
       if (store.bgm.on) bgmPlay();
       syncSettingsUI();
       toast("BGM 已更新 ♪");
-    } catch (err) { toast("导入失败，请重试"); }
+    } catch (err) {
+      // IndexedDB 不可用（如隐私模式）：退化为仅本次会话生效
+      if (bgmUrl && bgmUrl.startsWith("blob:")) URL.revokeObjectURL(bgmUrl);
+      bgmUrl = URL.createObjectURL(f);
+      if (bgmAudio) bgmAudio.src = bgmUrl;
+      if (store.bgm.on) bgmPlay();
+      toast("已使用该音乐（仅本次会话生效）");
+    }
+    updateBgmBtn();
     e.target.value = "";
   });
   $("#set-bgm-reset").addEventListener("click", async () => {

@@ -298,6 +298,20 @@ body {
 }
 #btn-photo:hover { filter: brightness(1.05); }
 
+#btn-bgm {
+  position: absolute;
+  top: 104px; right: 14px;
+  z-index: 40;
+  border: none; border-radius: 999px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--ui) 55%, #fff);
+  color: #5a4636;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,.15);
+}
+#btn-bgm:active { transform: scale(.95); }
+
 #btn-settings {
   position: absolute;
   top: 14px; right: 14px;
@@ -492,6 +506,7 @@ body {
   .btn { padding: 6px 12px; font-size: 12px; }
   #btn-settings { top: 10px; right: 10px; padding: 7px 14px; font-size: 13px; }
   #btn-photo { top: 50px; right: 10px; padding: 6px 13px; font-size: 12px; min-height: 36px; }
+  #btn-bgm { top: 92px; right: 10px; padding: 6px 11px; font-size: 12px; min-height: 36px; }
 
   .bubble { font-size: 13px; padding: 8px 11px; max-width: 72%; }
   .modal-box { padding: 18px 16px; }

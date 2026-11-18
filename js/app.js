@@ -9,7 +9,8 @@ const defaultStore = () => ({
   theme: "cream",
   bgImage: null, // dataURL
   ui: "#f28ab2",
-  quotes: null, // 词条库，默认 DEFAULT_QUOTES
+  decoLibrary: [], // 挂件库 [{ name, src }]，全角色共用
+  charQuotes: {},  // 每角色词条库 { [charId]: [词条] }
 });
 
 let store = defaultStore();
@@ -18,20 +19,44 @@ try {
   if (saved && saved.c1 && typeof saved.c1.id === "number") store = Object.assign(defaultStore(), saved);
 } catch (e) { /* ignore */ }
 
-// 归一化旧存档：补齐 accessories / quotes
+// 归一化旧存档：补齐 accessories / 挂件库 / 每角色词条库
 function normalizeStore() {
   for (const cfg of [store.c1, store.c2]) {
     if (cfg && !Array.isArray(cfg.accessories)) cfg.accessories = [];
     if (cfg) cfg.accessories = cfg.accessories.filter((a) => a && a.src);
+    // 默认涂鸦挂件已移除，清理引用旧路径的挂件
+    if (cfg) cfg.accessories = cfg.accessories.filter((a) => !/^assets\/decos\//.test(a.src));
   }
-  if (!Array.isArray(store.quotes) || store.quotes.length === 0) store.quotes = [...DEFAULT_QUOTES];
-  // 旧存档仍为旧版默认词条（含亲亲类颜文字）时，自动升级为新默认
-  else if (typeof LEGACY_DEFAULT_QUOTES !== "undefined" &&
-           JSON.stringify(store.quotes) === JSON.stringify(LEGACY_DEFAULT_QUOTES)) {
-    store.quotes = [...DEFAULT_QUOTES];
+  if (!Array.isArray(store.decoLibrary)) store.decoLibrary = [];
+  store.decoLibrary = store.decoLibrary.filter((d) => d && d.src);
+  if (!store.charQuotes || typeof store.charQuotes !== "object") store.charQuotes = {};
+  // 旧版全局词条迁移：若用户自定义过，则并入当前生效角色的词条库
+  if (Array.isArray(store.quotes) && store.quotes.length) {
+    const isDefault = JSON.stringify(store.quotes) === JSON.stringify(DEFAULT_QUOTES) ||
+                      (typeof LEGACY_DEFAULT_QUOTES !== "undefined" &&
+                       JSON.stringify(store.quotes) === JSON.stringify(LEGACY_DEFAULT_QUOTES));
+    if (!isDefault) {
+      for (const cfg of [store.c1, store.c2]) {
+        if (cfg && cfg.id && !store.charQuotes[cfg.id]) {
+          const char = CHARACTERS.find((c) => c.id === cfg.id);
+          store.charQuotes[cfg.id] = [...((char && char.quotes) || []), ...store.quotes];
+        }
+      }
+    }
+    delete store.quotes;
   }
 }
 normalizeStore();
+
+/* 每角色词条库 */
+function getQuotes(charId) {
+  if (!store.charQuotes[charId]) {
+    const char = CHARACTERS.find((c) => c.id === charId);
+    store.charQuotes[charId] = [...((char && char.quotes) || []), ...DEFAULT_QUOTES];
+    saveStore();
+  }
+  return store.charQuotes[charId];
+}
 
 function saveStore() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
@@ -141,12 +166,6 @@ function b64ToBytes(b64) {
   return u;
 }
 
-// 默认挂件图片地址：离线模式用内嵌 dataURI
-function accSrc(deco) {
-  const em = getEmbed();
-  return (em && em.decos && em.decos[deco.name]) || deco.src;
-}
-
 function animName(data, prefix, key) {
   const cands = {
     idle: ["idle01_f", "idle01_f_v2"],
@@ -249,15 +268,6 @@ async function spawnPet(slot) {
 const decoTextureCache = new Map();
 
 async function getDecoTexture(src) {
-  // file:// 下旧存档可能存的是相对路径，自动切换到内嵌资源
-  if (location.protocol === "file:" && !/^data:/i.test(src)) {
-    const m = src.match(/([^/]+)\.[a-zA-Z]+$/);
-    const em = getEmbed();
-    if (m && em && em.decos) {
-      const key = decodeURIComponent(m[1]);
-      if (em.decos[key]) src = em.decos[key];
-    }
-  }
   let bt = decoTextureCache.get(src);
   if (!bt) {
     const img = new Image();
@@ -320,6 +330,7 @@ function defaultAccPos(pet) {
 
 async function addAccessory(slot, acc) {
   const cfg = getCfg(slot);
+  if (!cfg) { toast("请先在设置里选择该角色，再挂挂件～"); return; }
   const pet = pets[slot];
   // 没有小人在场上：直接按默认位置挂上
   if (!pet || !pet.spine) {
@@ -332,7 +343,14 @@ async function addAccessory(slot, acc) {
   cancelPlacement();
   closeModal();
   const temp = Object.assign({ scale: 1 }, defaultAccPos(pet), acc);
-  const tex = await getDecoTexture(acc.src);
+  let tex;
+  try {
+    tex = await getDecoTexture(acc.src);
+  } catch (err) {
+    toast(`「${acc.name}」图片加载失败，已跳过`);
+    $("#settings-modal").classList.remove("hidden");
+    return;
+  }
   const sp = new PIXI.Sprite(tex);
   sp.anchor.set(0.5);
   sp.scale.set(accSpriteScale(pet, tex.height, temp));
@@ -435,6 +453,7 @@ function destroyPet(slot) {
     hidePlacementBar();
   }
   if (pet.actionTimer) clearTimeout(pet.actionTimer);
+  if (pet.tapTimer) clearTimeout(pet.tapTimer);
   if (pet.spine) { pet.spine.destroy(); }
   pets[slot] = null;
   hideBubble(slot);
@@ -477,12 +496,19 @@ function doRandomAction(pet) {
 }
 
 function startWalk(pet) {
-  const stageEl = $("#stage");
-  const W = stageEl.clientWidth;
   const walkAnim = animName(pet.data, pet.prefix, "walk");
-  pet.walkTarget = rand(0.1, 0.9);
+  // 默认向左走；已经贴着左边界或偶尔（20%）向右走
+  let dir = -1;
+  if (pet.cfg.fx < 0.24 || Math.random() < 0.2) dir = 1;
+  pet.walkDir = dir;
+  const dist = rand(0.12, 0.3);
+  pet.walkTarget = Math.max(0.08, Math.min(0.92, pet.cfg.fx + dir * dist));
+  pet.walkFy = 0.82; // 走路时回到地面基准线，不乱飘
+  // 朝向：向右走时镜像翻转（叠加在用户的水平反转设置上）
+  const needMirror = (dir > 0) !== !!pet.cfg.flip;
+  const s = pet.fitScale * (pet.cfg.scale || 1);
+  pet.spine.scale.x = (needMirror ? -1 : 1) * s;
   playAnim(pet, walkAnim, true);
-  // 走完后回到 idle（由 ticker 检测到达）
 }
 
 function speak(slot, text, mood) {
@@ -512,7 +538,8 @@ function positionBubble(slot) {
   const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
   let left = cx - roomRect.left - bw / 2;
   left = Math.max(8, Math.min(left, roomRect.width - bw - 8));
-  let top = headY - roomRect.top - bh - 10;
+  // 气泡位置低一点：底部沉到头顶以下约半个气泡高度
+  let top = headY - roomRect.top - bh * 0.55;
   top = Math.max(4, top);
   bubble.style.left = left + "px";
   bubble.style.top = top + "px";
@@ -523,13 +550,13 @@ function setupDrag(pet) {
   const spine = pet.spine;
   let down = false, moved = false, sx = 0, sy = 0;
   spine.on("pointerdown", (e) => {
-    if (!pet.cfg.drag) return;
+    // 无论是否允许拖动都要记录按下，点击（tap）才能生效
     down = true; moved = false;
     sx = e.global.x; sy = e.global.y;
-    spine.alpha = 0.85;
+    if (pet.cfg.drag) spine.alpha = 0.85;
   });
   spine.on("globalpointermove", (e) => {
-    if (!down) return;
+    if (!down || !pet.cfg.drag) return;
     const dx = e.global.x - sx, dy = e.global.y - sy;
     if (!moved && Math.hypot(dx, dy) > 6) moved = true;
     if (moved) {
@@ -554,12 +581,45 @@ function setupDrag(pet) {
 
 function onPetTap(pet) {
   if (pet.busy) return;
-  // 说一句词条库的话（颜文字）
-  const pool = (store.quotes && store.quotes.length) ? store.quotes : DEFAULT_QUOTES;
-  speak(pet.slot, pick(pool));
-  // 播放说话动作
+  const now = Date.now();
+  // 生气持续期（10~60秒随机）：点它只会得到生气反应
+  if (pet.angryUntil) {
+    if (now < pet.angryUntil) {
+      speak(pet.slot, pick(TAP_ANGRY_QUOTES));
+      const angry = animName(pet.data, pet.prefix, "angry");
+      if (angry && !pet.walkTarget) { playAnim(pet, angry, false); pet.pendingIdle = true; capOneShot(pet, angry, 3200); }
+      return;
+    }
+    pet.angryUntil = null; // 恢复正常
+    toast(`${pet.char.name} 气消啦～`);
+  }
+  // 一分钟内被点 3 次以上 → 生气，并持续 10~60 秒
+  pet.tapLog = (pet.tapLog || []).filter((t) => now - t < 60000);
+  pet.tapLog.push(now);
+  if (pet.tapLog.length >= 3) {
+    pet.tapLog = [];
+    pet.angryUntil = now + rand(10000, 60000);
+    speak(pet.slot, pick(TAP_ANGRY_QUOTES));
+    const angry = animName(pet.data, pet.prefix, "angry");
+    if (angry && !pet.walkTarget) { playAnim(pet, angry, false); pet.pendingIdle = true; capOneShot(pet, angry, 3200); }
+    return;
+  }
+  // 说一句该角色词条库里的话
+  speak(pet.slot, pick(getQuotes(pet.char.id)));
+  // 播放说话动作（动画较长，超时自动回到待机，保证下次点击有新反应）
   const talk = animName(pet.data, pet.prefix, "talk");
-  if (talk && !pet.walkTarget) { playAnim(pet, talk, false); pet.pendingIdle = true; }
+  if (talk && !pet.walkTarget) { playAnim(pet, talk, false); pet.pendingIdle = true; capOneShot(pet, talk, 2800); }
+}
+
+// 单次动作最长播放 ms 毫秒后自动回到待机（防止超长动画卡住交互）
+function capOneShot(pet, animNameStr, ms) {
+  if (pet.tapTimer) clearTimeout(pet.tapTimer);
+  pet.tapTimer = setTimeout(() => {
+    pet.tapTimer = null;
+    if (pets[pet.slot] !== pet) return;
+    const cur = pet.spine.state.getCurrent(0);
+    if (cur && cur.animation.name === animNameStr && !pet.walkTarget && !pet.busy) playIdle(pet);
+  }, ms);
 }
 
 /* ---------- ticker ---------- */
@@ -570,16 +630,27 @@ function tickerUpdate() {
   for (const slot of [1, 2]) {
     const pet = pets[slot];
     if (!pet || !pet.spine) continue;
-    // 行走移动
+    // 行走移动（贴地走向目标点，方向由 walkDir 决定）
     if (pet.walkTarget != null) {
       const speed = W * 0.055 * (app.ticker.deltaMS / 1000);
       const tx = pet.walkTarget * W;
       const dx = tx - pet.spine.x;
+      // 走路期间逐渐回到地面高度
+      if (pet.walkFy != null) {
+        const stepY = H * 0.05 * (app.ticker.deltaMS / 1000);
+        const dy = pet.walkFy * H - pet.spine.y;
+        if (Math.abs(dy) > stepY) pet.spine.y += Math.sign(dy) * stepY;
+      }
       if (Math.abs(dx) < speed) {
         pet.walkTarget = null;
+        applyPetLayout(pet); // 恢复用户设置的朝向与位置
         playIdle(pet);
       } else {
         pet.spine.x += Math.sign(dx) * speed;
+        // 保持朝向
+        const s = pet.fitScale * (pet.cfg.scale || 1);
+        const needMirror = (pet.walkDir > 0) !== !!pet.cfg.flip;
+        pet.spine.scale.x = (needMirror ? -1 : 1) * s;
       }
     }
     // 对话框跟随 + 超时隐藏
@@ -631,8 +702,8 @@ function feed(slot, food, liked) {
 
 /* ---------- 拍照 ---------- */
 async function photo(slot) {
-  const pet = pets[slot];
-  if (!pet) return;
+  const pet = pets[slot] || pets[1] || pets[2];
+  if (!pet) { toast("先选个角色再拍照吧～"); return; }
   const stageEl = $("#stage");
   const W = stageEl.clientWidth, H = stageEl.clientHeight;
   // 截取整个舞台（含所有小人），并合成房间底色/背景图
@@ -658,11 +729,7 @@ async function photo(slot) {
     grad.addColorStop(1, theme.floorDark);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
-    // 地毯
-    ctx.fillStyle = theme.rug;
-    ctx.beginPath();
-    ctx.ellipse(W / 2, H * 0.82, W * 0.3, H * 0.11, 0, 0, Math.PI * 2);
-    ctx.fill();
+    drawRoomFurniture(ctx, W, H, theme);
   }
   ctx.drawImage(ex, 0, 0, W, H);
   // 水印
@@ -680,7 +747,105 @@ async function photo(slot) {
   }, "image/png");
 }
 
-/* ---------- 缩略图 ---------- */
+/* ---------- 拍照：2D 复刻房间家具（与 CSS 位置一致） ---------- */
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawRoomFurniture(ctx, W, H, theme) {
+  const mobile = W <= 768;
+  // 地毯（含深色环）
+  const rug = (scale) => {
+    ctx.beginPath();
+    ctx.ellipse(W / 2, H * 0.81, W * 0.31 * scale, H * 0.12 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = theme.rugDark || theme.rug;
+  rug(1);
+  ctx.fillStyle = theme.rug;
+  rug(0.56);
+  ctx.globalAlpha = 1;
+
+  // 窗户（左上）
+  const winW = mobile ? 96 : 150, winH = mobile ? 70 : 110;
+  const wx = W * 0.08, wy = H * 0.07;
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  rr(ctx, wx + 3, wy + 5, winW, winH, 12);
+  const sky = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
+  sky.addColorStop(0, "#bfe3f2");
+  sky.addColorStop(0.6, "#dff2fb");
+  sky.addColorStop(1, "#eef8fd");
+  ctx.fillStyle = sky;
+  rr(ctx, wx, wy, winW, winH, 10);
+  ctx.strokeStyle = theme.wood || "#c98d5f";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(wx + 3, wy + 3, winW - 6, winH - 6);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(wx + winW / 2, wy + 3);
+  ctx.lineTo(wx + winW / 2, wy + winH - 3);
+  ctx.stroke();
+  // 窗帘
+  ctx.fillStyle = "#fff";
+  const cw = mobile ? 22 : 30;
+  rr(ctx, wx - 10, wy - 8, cw, winH * 0.8, 8);
+  rr(ctx, wx + winW + 10 - cw, wy - 8, cw, winH * 0.8, 8);
+
+  // 沙发（左，锚定地面）
+  const sw = mobile ? 150 : 220, sh = mobile ? 92 : 130;
+  const sx = W * 0.04, sy = H * (1 - 0.09) - sh;
+  // 靠背
+  ctx.fillStyle = theme.sofa;
+  rr(ctx, sx, sy, sw, sh - sh * 0.23, 24);
+  ctx.fillStyle = theme.sofaDark;
+  rr(ctx, sx, sy + (sh - sh * 0.23) - 8, sw, 8, 4);
+  // 坐垫
+  ctx.fillStyle = theme.sofa;
+  rr(ctx, sx + 8, sy + sh - 56, sw - 16, 42, 12);
+  ctx.fillStyle = theme.sofaDark;
+  rr(ctx, sx + 8, sy + sh - 20, sw - 16, 6, 3);
+  // 扶手
+  ctx.fillStyle = theme.sofaDark;
+  rr(ctx, sx - 10, sy + sh - 70, 34, 64, 14);
+  rr(ctx, sx + sw - 24, sy + sh - 70, 34, 64, 14);
+  // 抱枕
+  ctx.save();
+  ctx.translate(sx + 68, sy + 44); ctx.rotate(-0.1);
+  ctx.fillStyle = "#fff3c9"; rr(ctx, -22, -22, 44, 44, 10);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(sx + sw - 68, sy + 44); ctx.rotate(0.12);
+  ctx.fillStyle = "#fdd9c4"; rr(ctx, -22, -22, 44, 44, 10);
+  ctx.restore();
+
+  // 桌子（右，锚定地面）
+  const tw = mobile ? 92 : 130, th = mobile ? 86 : 120;
+  const tx = W * (1 - 0.07) - tw, ty = H * (1 - 0.06) - th;
+  const wood = theme.wood || "#c98d5f";
+  ctx.fillStyle = "rgba(0,0,0,0.12)";
+  rr(ctx, tx + tw / 2 - 40, ty + th - 8, 80, 10, 6);
+  ctx.fillStyle = wood;
+  rr(ctx, tx + tw / 2 - 7, ty + 18, 14, th - 22, 5);
+  rr(ctx, tx + tw / 2 - 40, ty + th - 14, 80, 10, 6);
+  ctx.beginPath();
+  ctx.ellipse(tx + tw / 2, ty + 13, tw / 2, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.font = `${mobile ? 17 : 24}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText("☕", tx + tw / 2, ty - 2);
+  ctx.textAlign = "start";
+}
+
+
 let thumbApp = null;
 async function makeThumb(char) {
   if (!thumbApp) {
@@ -804,10 +969,8 @@ function buildPanels() {
     panel.innerHTML = `
       <div class="panel-title"><span class="slot-tag">角色${slot}</span>${pet.char.name}</div>
       <div class="panel-btns">
-        <button class="btn photo-btn">📷 拍照</button>
         <button class="btn feed-btn">🍪 喂食</button>
       </div>`;
-    panel.querySelector(".photo-btn").addEventListener("click", () => photo(slot));
     panel.querySelector(".feed-btn").addEventListener("click", () => openFeedModal(slot));
     panels.appendChild(panel);
   }
@@ -883,7 +1046,7 @@ function initSettings() {
   // 挂件与词条库
   renderAccTools(1); renderAccTools(2);
   renderAccList(1); renderAccList(2);
-  initQuoteSettings();
+  renderQuoteSections();
   // 角色1
   fillCharSelect($("#set-c1-char"), false);
   $("#set-c1-char").addEventListener("change", async (e) => {
@@ -982,17 +1145,29 @@ function renderAccTools(slot) {
   const box = $(`#acc-tools-${slot}`);
   if (!box) return;
   box.innerHTML = "";
-  // 默认涂鸦挂件
-  DEFAULT_DECOS.forEach((d) => {
-    const src = accSrc(d);
+  const lib = store.decoLibrary || [];
+  // 挂件库（全角色共用，点击挂载）
+  if (!lib.length) {
+    const tip = document.createElement("span");
+    tip.className = "acc-empty-lib";
+    tip.textContent = "挂件库是空的，导入 PNG 开始吧～";
+    box.appendChild(tip);
+  }
+  lib.forEach((d, idx) => {
     const b = document.createElement("button");
     b.className = "acc-pick";
     b.title = `挂上「${d.name}」`;
-    b.innerHTML = `<img src="${src}" alt="${d.name}">`;
-    b.addEventListener("click", () => addAccessory(slot, { name: d.name, src }));
+    b.innerHTML = `<img src="${d.src}" alt="${d.name}">`;
+    const del = document.createElement("span");
+    del.className = "acc-lib-del";
+    del.textContent = "✕";
+    del.title = "从挂件库删除";
+    del.addEventListener("click", (e) => { e.stopPropagation(); removeFromLibrary(idx); });
+    b.appendChild(del);
+    b.addEventListener("click", () => addAccessory(slot, { name: d.name, src: d.src }));
     box.appendChild(b);
   });
-  // 导入 PNG
+  // 导入 PNG：先存入挂件库，再进入摆放模式
   const label = document.createElement("label");
   label.className = "btn small acc-import";
   label.textContent = "＋ 导入PNG";
@@ -1001,24 +1176,49 @@ function renderAccTools(slot) {
   file.accept = "image/png,image/*";
   file.multiple = true;
   file.style.display = "none";
-  file.addEventListener("change", () => {
+  file.addEventListener("change", async () => {
     const files = [...file.files];
     if (!files.length) return;
-    let pending = files.length;
-    files.forEach((f) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        addAccessory(slot, { name: f.name.replace(/\.[^.]+$/, ""), src: reader.result });
-        if (--pending === 0 && store.c1.accessories.length + (store.c2 ? store.c2.accessories.length : 0) > 12) {
-          toast("提示：挂件图片会保存在浏览器里，太多可能存不下哦");
-        }
-      };
-      reader.readAsDataURL(f);
-    });
+    const added = [];
+    for (const f of files) {
+      try {
+        const src = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result);
+          reader.onerror = () => rej(new Error("读取失败"));
+          reader.readAsDataURL(f);
+        });
+        // 校验是有效图片再入库
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const item = { name: f.name.replace(/\.[^.]+$/, ""), src };
+        store.decoLibrary.push(item);
+        added.push(item);
+      } catch (err) {
+        toast(`「${f.name}」不是有效图片，已跳过`);
+      }
+    }
+    if (added.length) {
+      saveStore();
+      renderAccTools(1); renderAccTools(2);
+      if (store.decoLibrary.length + (store.c1.accessories.length + (store.c2 ? store.c2.accessories.length : 0)) > 12) {
+        toast("提示：挂件图片存在浏览器里，太多可能存不下哦");
+      }
+      // 进入摆放模式（最后一个导入的）
+      addAccessory(slot, added[added.length - 1]);
+    }
     file.value = "";
   });
   label.appendChild(file);
   box.appendChild(label);
+}
+
+function removeFromLibrary(idx) {
+  store.decoLibrary.splice(idx, 1);
+  saveStore();
+  renderAccTools(1); renderAccTools(2);
+  toast("已从挂件库移除");
 }
 
 function renderAccList(slot) {
@@ -1051,43 +1251,70 @@ function renderAccList(slot) {
 }
 
 /* ---------- 设置：词条库 UI ---------- */
-function renderQuoteChips() {
-  const box = $("#quote-chips");
+/* 每个生效角色一个词条库区块；charKey = "1" / "2"（面板位） */
+function renderQuoteSections() {
+  const box = $("#quote-sections");
   if (!box) return;
   box.innerHTML = "";
-  (store.quotes || []).forEach((q, idx) => {
-    const chip = document.createElement("span");
-    chip.className = "quote-chip";
-    chip.textContent = q;
-    const del = document.createElement("button");
-    del.textContent = "✕";
-    del.title = "删除这条词条";
-    del.addEventListener("click", () => {
-      store.quotes.splice(idx, 1);
-      saveStore(); renderQuoteChips();
-    });
-    chip.appendChild(del);
-    box.appendChild(chip);
+  const slots = [1, 2].filter((s) => {
+    const cfg = s === 1 ? store.c1 : store.c2;
+    return cfg && cfg.id;
   });
-  if (!store.quotes.length) box.innerHTML = `<span class="food-empty">词条库空了，添加几个或恢复默认吧～</span>`;
-}
-
-function initQuoteSettings() {
-  const input = $("#quote-input");
-  const add = () => {
-    const v = input.value.trim();
-    if (!v) return;
-    if (store.quotes.length >= 200) { toast("词条太多啦，先删掉一些吧"); return; }
-    store.quotes.push(v);
-    input.value = "";
-    saveStore(); renderQuoteChips();
-    toast("词条已添加，点一下小人试试！"); 
-  };
-  $("#quote-add").addEventListener("click", add);
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
-  $("#quote-reset").addEventListener("click", () => {
-    store.quotes = [...DEFAULT_QUOTES];
-    saveStore(); renderQuoteChips(); toast("已恢复默认词条");
+  if (!slots.length) {
+    box.innerHTML = `<div class="acc-empty">（先选择角色，才能编辑它的词条库）</div>`;
+    return;
+  }
+  slots.forEach((slot) => {
+    const cfg = slot === 1 ? store.c1 : store.c2;
+    const char = CHARACTERS.find((c) => c.id === cfg.id);
+    const sec = document.createElement("div");
+    sec.className = "qsec";
+    sec.innerHTML = `
+      <h4>${slot === 1 ? "角色1" : "角色2"} · ${char.name}</h4>
+      <div class="quote-chips"></div>
+      <div class="row">
+        <input type="text" class="quote-input" placeholder="给 ${char.name} 添加新词条～">
+        <button class="btn small q-add">添加</button>
+      </div>
+      <button class="btn small ghost q-reset">恢复默认词条</button>`;
+    const chips = sec.querySelector(".quote-chips");
+    const input = sec.querySelector(".quote-input");
+    const quotes = getQuotes(char.id);
+    const render = () => {
+      chips.innerHTML = "";
+      const list = getQuotes(char.id);
+      if (!list.length) { chips.innerHTML = `<span class="food-empty">词条库空了，添加几个吧～</span>`; return; }
+      list.forEach((q, idx) => {
+        const chip = document.createElement("span");
+        chip.className = "quote-chip";
+        chip.textContent = q;
+        const del = document.createElement("button");
+        del.textContent = "✕";
+        del.title = "删除这条词条";
+        del.addEventListener("click", () => { list.splice(idx, 1); saveStore(); render(); });
+        chip.appendChild(del);
+        chips.appendChild(chip);
+      });
+    };
+    const add = () => {
+      const v = input.value.trim();
+      if (!v) return;
+      const list = getQuotes(char.id);
+      if (list.length >= 200) { toast("词条太多啦，先删掉一些吧"); return; }
+      list.push(v);
+      input.value = "";
+      saveStore(); render();
+      toast(`${char.name} 的词条已添加，点它试试！`);
+    };
+    sec.querySelector(".q-add").addEventListener("click", add);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
+    sec.querySelector(".q-reset").addEventListener("click", () => {
+      const persona = (char.quotes || []);
+      store.charQuotes[char.id] = [...persona, ...DEFAULT_QUOTES];
+      saveStore(); render(); toast(`${char.name} 的词条已恢复默认`);
+    });
+    render();
+    box.appendChild(sec);
   });
 }
 
@@ -1104,7 +1331,7 @@ function syncSettingsUI() {
   document.querySelectorAll("#theme-swatches .swatch").forEach((b) => b.classList.toggle("active", b.dataset.theme === store.theme && !store.bgImage));
   document.querySelectorAll("#ui-swatches .swatch").forEach((b) => b.classList.toggle("active", b.title && UI_COLORS.find((c) => c.color === store.ui && c.name === b.title)));
   $("#set-uicolor").value = store.ui;
-  renderQuoteChips();
+  renderQuoteSections();
   renderAccList(1); renderAccList(2);
 }
 
@@ -1134,6 +1361,7 @@ async function boot() {
     r.addEventListener("change", (e) => { selectState.target = +e.target.value; });
   });
   $("#btn-start").addEventListener("click", () => { if (!store.c1.id) return; enterMain(); });
+  $("#btn-photo").addEventListener("click", () => photo(1));
   document.querySelectorAll(".modal-close").forEach((b) => b.addEventListener("click", closeModal));
   document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModal(); }));
   if (store.c1.id) {

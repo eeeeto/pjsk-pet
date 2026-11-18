@@ -52,6 +52,7 @@
       <div id="bubble-2" class="bubble hidden"></div>
     </div>
     <div id="panels"></div>
+    <button id="btn-photo">📷 拍照</button>
     <button id="btn-settings">⚙ 设置</button>
   </div>
 
@@ -68,7 +69,7 @@
         <div class="row"><label>允许拖动</label><input type="checkbox" id="set-c1-drag"></div>
         <div class="row"><label>大小</label><input type="range" id="set-c1-scale" min="0.5" max="1.6" step="0.05" value="1"></div>
         <div class="acc-block">
-          <div class="row"><label>挂件</label><span class="acc-hint">点击涂鸦或导入 PNG 挂到身上，可在小人身上直接拖动调整位置</span></div>
+          <div class="row"><label>挂件</label><span class="acc-hint">从挂件库点击或导入 PNG 进入摆放，拖到身上喜欢的位置后点「确定」锁定</span></div>
           <div class="acc-tools" id="acc-tools-1"></div>
           <div class="acc-list" id="acc-list-1"></div>
         </div>
@@ -81,7 +82,7 @@
         <div class="row"><label>允许拖动</label><input type="checkbox" id="set-c2-drag"></div>
         <div class="row"><label>大小</label><input type="range" id="set-c2-scale" min="0.5" max="1.6" step="0.05" value="1"></div>
         <div class="acc-block">
-          <div class="row"><label>挂件</label><span class="acc-hint">点击涂鸦或导入 PNG 挂到身上，可在小人身上直接拖动调整位置</span></div>
+          <div class="row"><label>挂件</label><span class="acc-hint">从挂件库点击或导入 PNG 进入摆放，拖到身上喜欢的位置后点「确定」锁定</span></div>
           <div class="acc-tools" id="acc-tools-2"></div>
           <div class="acc-list" id="acc-list-2"></div>
         </div>
@@ -104,13 +105,8 @@
       </section>
 
       <section>
-        <h3>词条库（点击小人时随机冒出）</h3>
-        <div id="quote-chips"></div>
-        <div class="row">
-          <input type="text" id="quote-input" class="quote-input" placeholder="输入新词条，颜文字或文字都可以～">
-          <button class="btn small" id="quote-add">添加</button>
-        </div>
-        <button class="btn small ghost" id="quote-reset">恢复默认词条</button>
+        <h3>词条库（每个角色独立，只显示生效中的角色）</h3>
+        <div id="quote-sections"></div>
       </section>
 
       <p class="credit">模型资源来自 sekai.best（Sekai Viewer）· Project Sekai 同人作品，仅供娱乐</p>

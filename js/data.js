@@ -157,13 +157,13 @@ const LEGACY_DEFAULT_QUOTES = [
   "( ˘ ³˘)♥", "✧(≖ ◡ ≖✿)", "(๑˃̵ᴗ˂̵)و", "( •̀ ω •́ )✧", "( •̀ᴗ•́ )و ̑̑",
 ];
 
-/* 默认挂件（涂鸦） */
-const DEFAULT_DECOS = [
-  { name: "兔耳", src: "assets/decos/兔耳.png" },
-  { name: "下垂的狗耳朵", src: "assets/decos/下垂的狗耳朵.png" },
-  { name: "圆耳朵", src: "assets/decos/圆耳朵.png" },
-  { name: "垂耳兔耳朵", src: "assets/decos/垂耳兔耳朵.png" },
-  { name: "尖耳朵", src: "assets/decos/尖耳朵.png" },
+// 一分钟内被点 3 次以上时的"生气"台词
+const TAP_ANGRY_QUOTES = [
+  "(￣ヘ￣) 戳、戳够了吗！",
+  "(＃￣▽￣＃) 别再点啦！",
+  "(¬_¬) 哼，生气了！",
+  "(；￣Д￣) 要生气了哦！",
+  "(－‸－) 呜……不要再戳了……",
 ];
 
 /* 角色数据 */

@@ -45,15 +45,20 @@ def main():
         print("  chibi:", name)
     out.append("  },")
 
-    # decos
-    out.append("  decos: {")
-    for name in sorted(os.listdir(decos_dir)):
-        if not name.lower().endswith(".png"):
-            continue
-        key = name[:-4]
-        out.append('    %s: "data:image/png;base64,%s",' % (json.dumps(key), b64(os.path.join(decos_dir, name))))
-        print("  deco:", key)
-    out.append("  }")
+    # decos（目录可选，默认涂鸦已移除）
+    out.append("  decos: {}")
+    if os.path.isdir(decos_dir):
+        deco_lines = []
+        for name in sorted(os.listdir(decos_dir)):
+            if not name.lower().endswith(".png"):
+                continue
+            key = name[:-4]
+            deco_lines.append('    %s: "data:image/png;base64,%s",' % (json.dumps(key), b64(os.path.join(decos_dir, name))))
+            print("  deco:", key)
+        if deco_lines:
+            out[-1] = "  decos: {"
+            out.extend(deco_lines)
+            out.append("  }")
     out.append("};")
 
     dst = os.path.join(ASSETS, "embed.js")

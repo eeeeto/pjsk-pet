@@ -24,15 +24,20 @@ body {
   align-items: center;
 }
 .app-title {
-  font-size: 30px;
+  font-size: clamp(19px, 5.2vw, 30px);
   color: var(--ui);
   text-shadow: 0 2px 0 rgba(255,255,255,.6);
   letter-spacing: 2px;
+  white-space: nowrap;
+  max-width: 96vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.sel-tip { margin-top: 10px; font-size: 14px; color: #8a7a66; text-align: center; }
+.sel-tip { margin-top: 10px; font-size: 14px; color: #8a7a66; text-align: center; max-width: min(92vw, 560px); overflow-wrap: anywhere; }
 .target-switch {
   margin-top: 12px;
-  display: flex; gap: 18px;
+  display: flex; gap: 8px 18px; flex-wrap: wrap; justify-content: center;
+  max-width: 94vw;
   background: #fff; border-radius: 999px;
   padding: 8px 20px;
   box-shadow: 0 2px 8px rgba(160,120,80,.15);
@@ -135,8 +140,8 @@ body {
 }
 #room.custom-bg #rug, #room.custom-bg #sofa, #room.custom-bg #table, #room.custom-bg .window { display: none; }
 
-/* 沙发 */
-#sofa { position: absolute; left: 4%; top: 40%; width: 220px; height: 130px; }
+/* 沙发 —— 锚定在地面线上，任何屏幕高度都贴着地板 */
+#sofa { position: absolute; left: 4%; bottom: 9%; width: 220px; height: 130px; }
 .sofa-back {
   position: absolute; inset: 0 0 30px 0;
   background: var(--sofa, #f2a9b8);
@@ -165,8 +170,8 @@ body {
 .cushion.c1 { left: 46px; transform: rotate(-6deg); }
 .cushion.c2 { right: 46px; transform: rotate(7deg); background: #fdd9c4; }
 
-/* 桌子 */
-#table { position: absolute; right: 7%; top: 56%; width: 130px; height: 120px; }
+/* 桌子 —— 同样锚定地面 */
+#table { position: absolute; right: 7%; bottom: 6%; width: 130px; height: 120px; }
 .table-top {
   position: absolute; top: 0; left: 0; right: 0; height: 26px;
   background: var(--wood, #c98d5f);
@@ -270,6 +275,20 @@ body {
 }
 .btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
 .btn.small { padding: 4px 14px; font-size: 12px; }
+
+#btn-photo {
+  position: absolute;
+  top: 58px; right: 14px;
+  z-index: 40;
+  border: none; border-radius: 999px;
+  padding: 9px 18px;
+  background: color-mix(in srgb, var(--ui) 70%, #fff);
+  color: #5a4636;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,.15);
+}
+#btn-photo:hover { filter: brightness(1.05); }
 
 #btn-settings {
   position: absolute;
@@ -448,8 +467,8 @@ body {
   /* 房间家具按比例缩小 */
   .window { width: 96px; height: 70px; }
   .curtain { width: 22px; }
-  #sofa { width: 130px; height: 80px; transform: scale(.85); transform-origin: bottom left; }
-  #table { width: 84px; height: 78px; transform: scale(.85); transform-origin: bottom right; }
+  #sofa { width: 150px; height: 92px; }
+  #table { width: 92px; height: 86px; }
   .teacup { font-size: 17px; }
 
   /* 面板与按钮 */
@@ -459,6 +478,7 @@ body {
   .panel-btns { gap: 6px; }
   .btn { padding: 6px 12px; font-size: 12px; }
   #btn-settings { top: 10px; right: 10px; padding: 7px 14px; font-size: 13px; }
+  #btn-photo { top: 50px; right: 10px; padding: 6px 13px; font-size: 12px; min-height: 36px; }
 
   .bubble { font-size: 13px; padding: 8px 11px; max-width: 72%; }
   .modal-box { padding: 18px 16px; }
@@ -519,3 +539,18 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   #place-bar { bottom: calc(158px + env(safe-area-inset-bottom, 0px)); max-width: 96vw; }
   #place-tip { max-width: 40vw; font-size: 13px; }
 }
+
+/* 挂件库删除按钮 */
+.acc-pick { position: relative; }
+.acc-lib-del {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  background: #d77; color: #fff;
+  border-radius: 50%;
+  font-size: 11px; line-height: 18px; text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+}
+.acc-lib-del:hover { background: #c55; }
+.acc-empty-lib { font-size: 12px; color: #b3a48d; padding: 8px 4px; }
+.qsec h4 { font-size: 14px; color: var(--ui); margin: 10px 0 6px; }
+.qsec { border-top: 2px dashed #eee0cf; padding-top: 6px; margin-top: 8px; }

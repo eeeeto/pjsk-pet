@@ -66,6 +66,7 @@ body {
 .char-card .thumb-box img { max-height: 128px; pointer-events: none; }
 .thumb-loading { color: #cbb; font-size: 22px; padding-bottom: 50px; }
 .char-name { font-weight: 700; margin-top: 6px; font-size: 14px; }
+.char-costume { font-size: 11px; color: #fff; background: var(--ui, #f28ab2); border-radius: 999px; padding: 1px 8px; display: inline-block; margin-top: 4px; }
 .char-unit { font-size: 11px; color: #a3937e; margin-top: 2px; }
 .char-card.sel-1 { border-color: var(--ui); box-shadow: 0 4px 14px color-mix(in srgb, var(--ui) 45%, transparent); }
 .char-card.sel-1::before {
@@ -141,7 +142,7 @@ body {
 #room.custom-bg #rug, #room.custom-bg #sofa, #room.custom-bg #table, #room.custom-bg .window { display: none; }
 
 /* 沙发 —— 锚定在地面线上，任何屏幕高度都贴着地板 */
-#sofa { position: absolute; left: 4%; bottom: 9%; width: 220px; height: 130px; }
+#sofa { position: absolute; left: 4%; bottom: 24%; width: 220px; height: 130px; }
 .sofa-back {
   position: absolute; inset: 0 0 30px 0;
   background: var(--sofa, #f2a9b8);
@@ -171,7 +172,7 @@ body {
 .cushion.c2 { right: 46px; transform: rotate(7deg); background: #fdd9c4; }
 
 /* 桌子 —— 同样锚定地面 */
-#table { position: absolute; right: 7%; bottom: 6%; width: 130px; height: 120px; }
+#table { position: absolute; right: 7%; bottom: 21%; width: 130px; height: 120px; }
 .table-top {
   position: absolute; top: 0; left: 0; right: 0; height: 26px;
   background: var(--wood, #c98d5f);
@@ -460,15 +461,16 @@ body {
   .char-card { padding: 6px 4px 8px; border-width: 2px; }
   .char-card .thumb-box, .char-card .thumb-box img { height: 96px; max-height: 96px; }
   .char-name { font-size: 12px; }
+  .char-costume { font-size: 10px; padding: 1px 6px; }
   .char-unit { font-size: 10px; }
   .char-card.sel-1::before, .char-card.sel-2::before { font-size: 10px; top: -8px; }
   #btn-start { font-size: 16px; padding: 10px 36px; }
 
-  /* 房间家具按比例缩小 */
+  /* 房间家具：手机竖屏贴墙面线摆放并整体放大（超出屏幕部分被 #room 裁掉） */
   .window { width: 96px; height: 70px; }
   .curtain { width: 22px; }
-  #sofa { width: 150px; height: 92px; }
-  #table { width: 92px; height: 86px; }
+  #sofa { left: 0%; bottom: 23%; transform: scale(1.5); transform-origin: left bottom; }
+  #table { right: 0%; bottom: 20%; transform: scale(1.5); transform-origin: right bottom; }
   .teacup { font-size: 17px; }
 
   /* 面板与按钮 */

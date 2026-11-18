@@ -30,6 +30,16 @@ function normalizeStore() {
   if (!Array.isArray(store.decoLibrary)) store.decoLibrary = [];
   store.decoLibrary = store.decoLibrary.filter((d) => d && d.src);
   if (!store.charQuotes || typeof store.charQuotes !== "object") store.charQuotes = {};
+  // 服装存档迁移：cfg.spine 缺失或不属于该角色时，回落到该角色第一套服装
+  for (const cfg of [store.c1, store.c2]) {
+    if (cfg && cfg.id) {
+      const char = CHARACTERS.find((c) => c.id === cfg.id);
+      if (char) {
+        const ok = char.costumes.some((x) => x.spine === cfg.spine);
+        if (!ok) cfg.spine = char.costumes[0].spine;
+      }
+    }
+  }
   // 旧版全局词条迁移：若用户自定义过，则并入当前生效角色的词条库
   if (Array.isArray(store.quotes) && store.quotes.length) {
     const isDefault = JSON.stringify(store.quotes) === JSON.stringify(DEFAULT_QUOTES) ||
@@ -47,6 +57,19 @@ function normalizeStore() {
   }
 }
 normalizeStore();
+
+/* ---------- 角色 / 服装索引 ---------- */
+// CHARACTERS 中每个角色带 costumes: [{ spine, costume }]，展开成全服装列表供选人页使用
+const COSTUME_LIST = [];
+CHARACTERS.forEach((c) => {
+  c.costumes.forEach((ct) => COSTUME_LIST.push({ char: c, spine: ct.spine, costume: ct.costume }));
+});
+const charById = (id) => CHARACTERS.find((c) => c.id === id);
+const costumeEntryOf = (cfg) => {
+  const char = cfg && charById(cfg.id);
+  if (!char) return null;
+  return char.costumes.find((x) => x.spine === cfg.spine) || char.costumes[0];
+};
 
 /* 每角色词条库 */
 function getQuotes(charId) {
@@ -108,22 +131,22 @@ function onResize() {
 const baseTextureCache = new Map();
 const atlasTextCache = new Map();
 
-async function loadAtlas(char) {
-  const txtUrl = `assets/chibis/${char.spine}/sekai_atlas.atlas.txt`;
-  const pngUrl = `assets/chibis/${char.spine}/sekai_atlas.png`;
-  const emc = getEmbed() && getEmbed().chibis && getEmbed().chibis[char.spine];
-  let txt = atlasTextCache.get(char.spine);
+async function loadAtlas(spineName) {
+  const txtUrl = `assets/chibis/${spineName}/sekai_atlas.atlas.txt`;
+  const pngUrl = `assets/chibis/${spineName}/sekai_atlas.png`;
+  const emc = getEmbed() && getEmbed().chibis && getEmbed().chibis[spineName];
+  let txt = atlasTextCache.get(spineName);
   if (!txt) {
     txt = emc ? emc.atlas : await (await fetch(txtUrl)).text();
-    atlasTextCache.set(char.spine, txt);
+    atlasTextCache.set(spineName, txt);
   }
-  let bt = baseTextureCache.get(char.spine);
+  let bt = baseTextureCache.get(spineName);
   if (!bt) {
     const img = new Image();
     img.src = emc ? emc.png : pngUrl;
     await img.decode();
     bt = new PIXI.BaseTexture(img);
-    baseTextureCache.set(char.spine, bt);
+    baseTextureCache.set(spineName, bt);
   }
   const atlas = new PIXI.spine.TextureAtlas(txt, (page, cb) => cb(bt));
   return atlas;
@@ -210,12 +233,14 @@ const GROUND_MIN = 0.72, GROUND_MAX = 0.9;
 async function spawnPet(slot) {
   const cfg = slot === 1 ? store.c1 : store.c2;
   if (!cfg || !cfg.id) return;
-  const char = CHARACTERS.find((c) => c.id === cfg.id);
+  const char = charById(cfg.id);
+  const ct = costumeEntryOf(cfg);
+  cfg.spine = ct.spine; // 回写，保证存档一致
   const stageEl = $("#stage");
   const W = stageEl.clientWidth, H = stageEl.clientHeight;
 
   destroyPet(slot);
-  const atlas = await loadAtlas(char);
+  const atlas = await loadAtlas(ct.spine);
   const data = buildSkeletonData(atlas);
   const spine = new PIXI.spine.Spine(data);
 
@@ -478,6 +503,7 @@ function scheduleNextAction(pet, delay) {
 
 function doRandomAction(pet) {
   if (!pets[pet.slot]) return;
+  if (pet.walkTarget != null) { scheduleNextAction(pet, 3000); return; } // 走路中不打断
   if (pet.busy) { scheduleNextAction(pet, 3000); return; }
   const pool = pet.actionPool || (pet.actionPool = buildActionPool(pet.data, pet.prefix));
   const act = weightedPick(pool);
@@ -500,15 +526,31 @@ function startWalk(pet) {
   // 默认向左走；已经贴着左边界或偶尔（20%）向右走
   let dir = -1;
   if (pet.cfg.fx < 0.24 || Math.random() < 0.2) dir = 1;
+  pet.walkLegs = 0;
+  beginWalkLeg(pet, dir);
+  playAnim(pet, walkAnim, true);
+}
+
+// 开始一段行走：走到当前方向的屏幕边缘
+function beginWalkLeg(pet, dir) {
   pet.walkDir = dir;
-  const dist = rand(0.12, 0.3);
-  pet.walkTarget = Math.max(0.08, Math.min(0.92, pet.cfg.fx + dir * dist));
+  pet.walkTarget = dir < 0 ? 0.06 : 0.94;
   pet.walkFy = 0.82; // 走路时回到地面基准线，不乱飘
   // 朝向：向右走时镜像翻转（叠加在用户的水平反转设置上）
   const needMirror = (dir > 0) !== !!pet.cfg.flip;
   const s = pet.fitScale * (pet.cfg.scale || 1);
   pet.spine.scale.x = (needMirror ? -1 : 1) * s;
-  playAnim(pet, walkAnim, true);
+}
+
+// 把小人当前位置写回配置（走完/停下后待在原地）
+function capturePetPos(pet) {
+  const stageEl = $("#stage");
+  const W = stageEl.clientWidth, H = stageEl.clientHeight;
+  const s = pet.fitScale * (pet.cfg.scale || 1);
+  const b = pet.unitBounds;
+  const centerX = ((b.x + (b.x + b.width)) / 2) * (pet.cfg.flip ? -1 : 1);
+  pet.cfg.fx = Math.max(0.06, Math.min(0.94, (pet.spine.x + centerX * s) / W));
+  pet.cfg.fy = Math.max(GROUND_MIN - 0.06, Math.min(GROUND_MAX + 0.04, (pet.spine.y + (b.y + b.height) * s) / H));
 }
 
 function speak(slot, text, mood) {
@@ -560,6 +602,8 @@ function setupDrag(pet) {
     const dx = e.global.x - sx, dy = e.global.y - sy;
     if (!moved && Math.hypot(dx, dy) > 6) moved = true;
     if (moved) {
+      pet.walkTarget = null; // 拖动时中断走路
+      if (pet.actionTimer) { clearTimeout(pet.actionTimer); scheduleNextAction(pet); }
       const stageEl = $("#stage");
       const W = stageEl.clientWidth, H = stageEl.clientHeight;
       pet.cfg.fx = Math.max(0.06, Math.min(0.94, pet.cfg.fx + dx / W));
@@ -642,9 +686,21 @@ function tickerUpdate() {
         if (Math.abs(dy) > stepY) pet.spine.y += Math.sign(dy) * stepY;
       }
       if (Math.abs(dx) < speed) {
+        // 走到目标边缘：停在原地（位置写回配置），待在走到的地方
+        pet.spine.x = tx;
         pet.walkTarget = null;
-        applyPetLayout(pet); // 恢复用户设置的朝向与位置
-        playIdle(pet);
+        capturePetPos(pet);
+        pet.walkLegs = (pet.walkLegs || 0) + 1;
+        // 到达屏幕边缘后翻转朝向、往相反方向走；偶尔（35%）停下休息，最多连走4段
+        if (pet.walkLegs < 4 && Math.random() > 0.35) {
+          beginWalkLeg(pet, -(pet.walkDir || 1));
+          playAnim(pet, animName(pet.data, pet.prefix, "walk"), true);
+          scheduleNextAction(pet, rand(5000, 15000));
+        } else {
+          applyPetLayout(pet); // 恢复用户设置的朝向
+          playIdle(pet);
+          scheduleNextAction(pet);
+        }
       } else {
         pet.spine.x += Math.sign(dx) * speed;
         // 保持朝向
@@ -799,9 +855,9 @@ function drawRoomFurniture(ctx, W, H, theme) {
   rr(ctx, wx - 10, wy - 8, cw, winH * 0.8, 8);
   rr(ctx, wx + winW + 10 - cw, wy - 8, cw, winH * 0.8, 8);
 
-  // 沙发（左，锚定地面）
-  const sw = mobile ? 150 : 220, sh = mobile ? 92 : 130;
-  const sx = W * 0.04, sy = H * (1 - 0.09) - sh;
+  // 沙发（左，贴地板上端墙面线）
+  const sw = mobile ? 330 : 220, sh = mobile ? 195 : 130;
+  const sx = mobile ? 0 : W * 0.04, sy = H * (1 - (mobile ? 0.23 : 0.24)) - sh;
   // 靠背
   ctx.fillStyle = theme.sofa;
   rr(ctx, sx, sy, sw, sh - sh * 0.23, 24);
@@ -818,17 +874,17 @@ function drawRoomFurniture(ctx, W, H, theme) {
   rr(ctx, sx + sw - 24, sy + sh - 70, 34, 64, 14);
   // 抱枕
   ctx.save();
-  ctx.translate(sx + 68, sy + 44); ctx.rotate(-0.1);
+  ctx.translate(sx + sw * 0.31, sy + sh * 0.34); ctx.rotate(-0.1);
   ctx.fillStyle = "#fff3c9"; rr(ctx, -22, -22, 44, 44, 10);
   ctx.restore();
   ctx.save();
-  ctx.translate(sx + sw - 68, sy + 44); ctx.rotate(0.12);
+  ctx.translate(sx + sw * 0.69, sy + sh * 0.34); ctx.rotate(0.12);
   ctx.fillStyle = "#fdd9c4"; rr(ctx, -22, -22, 44, 44, 10);
   ctx.restore();
 
-  // 桌子（右，锚定地面）
-  const tw = mobile ? 92 : 130, th = mobile ? 86 : 120;
-  const tx = W * (1 - 0.07) - tw, ty = H * (1 - 0.06) - th;
+  // 桌子（右，贴地板上端墙面线）
+  const tw = mobile ? 195 : 130, th = mobile ? 180 : 120;
+  const tx = W - tw - (mobile ? 0 : W * 0.07), ty = H * (1 - (mobile ? 0.20 : 0.21)) - th;
   const wood = theme.wood || "#c98d5f";
   ctx.fillStyle = "rgba(0,0,0,0.12)";
   rr(ctx, tx + tw / 2 - 40, ty + th - 8, 80, 10, 6);
@@ -847,16 +903,16 @@ function drawRoomFurniture(ctx, W, H, theme) {
 
 
 let thumbApp = null;
-async function makeThumb(char) {
+async function makeThumb(entry) {
   if (!thumbApp) {
     thumbApp = new PIXI.Application({
       width: 180, height: 200, backgroundAlpha: 0, antialias: true, autoStart: false,
     });
   }
-  const atlas = await loadAtlas(char);
+  const atlas = await loadAtlas(entry.spine);
   const data = buildSkeletonData(atlas);
   const spine = new PIXI.spine.Spine(data);
-  const prefix = prefixFor(char);
+  const prefix = prefixFor(entry.char);
   const idle = animName(data, prefix, "idle") || animName(data, prefix, "wait");
   spine.state.setAnimation(0, idle || data.animations[0].name, true);
   spine.update(0.05);
@@ -876,53 +932,78 @@ async function makeThumb(char) {
   return url;
 }
 
-/* ---------- 选人界面 ---------- */
-const selectState = { target: 1, thumbs: {} };
+/* ---------- 选人界面（按服装展示） ---------- */
+const selectState = { target: 1, thumbs: {}, queue: [], busy: false };
 
 async function initSelectScreen() {
   const grid = $("#thumb-grid");
   grid.innerHTML = "";
-  for (const char of CHARACTERS) {
+  for (const entry of COSTUME_LIST) {
     const card = document.createElement("div");
     card.className = "char-card";
-    card.dataset.id = char.id;
+    card.dataset.spine = entry.spine;
     card.innerHTML = `
       <div class="thumb-box"><div class="thumb-loading">…</div></div>
-      <div class="char-name">${char.name}</div>
-      <div class="char-unit">${char.unit}</div>`;
-    card.addEventListener("click", () => onCardClick(char, card));
+      <div class="char-name">${entry.char.name}</div>
+      <div class="char-costume">${entry.costume}</div>
+      <div class="char-unit">${entry.char.unit}</div>`;
+    card.addEventListener("click", () => onCardClick(entry, card));
     grid.appendChild(card);
   }
-  // 逐个生成缩略图
-  for (const char of CHARACTERS) {
-    const card = grid.querySelector(`[data-id="${char.id}"]`);
-    try {
-      const url = await makeThumb(char);
-      selectState.thumbs[char.id] = url;
-      card.querySelector(".thumb-box").innerHTML = `<img src="${url}" alt="${char.name}">`;
-    } catch (e) {
-      card.querySelector(".thumb-box").textContent = "😵";
+  // 缩略图懒加载：卡片进入视口才渲染，避免首屏一次性加载全部模型
+  const io = new IntersectionObserver((infos) => {
+    for (const info of infos) {
+      if (!info.isIntersecting) continue;
+      const card = info.target;
+      io.unobserve(card);
+      const entry = COSTUME_LIST.find((x) => x.spine === card.dataset.spine);
+      if (entry) selectState.queue.push({ entry, card });
     }
-    $("#sel-status").textContent = `正在生成模型预览 ${char.id}/${CHARACTERS.length} …`;
-    await new Promise((r) => setTimeout(r, 0));
+    pumpThumbQueue();
+  }, { root: $("#select-screen"), rootMargin: "200px" });
+  grid.querySelectorAll(".char-card").forEach((c) => io.observe(c));
+
+  async function pumpThumbQueue() {
+    if (selectState.busy) return;
+    selectState.busy = true;
+    while (selectState.queue.length) {
+      const { entry, card } = selectState.queue.shift();
+      if (selectState.thumbs[entry.spine]) {
+        card.querySelector(".thumb-box").innerHTML = `<img src="${selectState.thumbs[entry.spine]}" alt="${entry.char.name} ${entry.costume}">`;
+        continue;
+      }
+      try {
+        const url = await makeThumb(entry);
+        selectState.thumbs[entry.spine] = url;
+        card.querySelector(".thumb-box").innerHTML = `<img src="${url}" alt="${entry.char.name} ${entry.costume}">`;
+      } catch (e) {
+        card.querySelector(".thumb-box").textContent = "😵";
+      }
+      const done = Object.keys(selectState.thumbs).length;
+      $("#sel-status").textContent = `正在生成模型预览 ${done}/${COSTUME_LIST.length} …`;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    selectState.busy = false;
+    $("#sel-status").textContent = "加载完成！选择服装后开始吧 ♪";
+    refreshCardSelection();
   }
-  $("#sel-status").textContent = "加载完成！选择角色后开始吧 ♪";
   refreshCardSelection();
 }
 
-function onCardClick(char, card) {
+function onCardClick(entry, card) {
   if (selectState.target === 1) {
-    store.c1.id = char.id;
+    store.c1.id = entry.char.id;
+    store.c1.spine = entry.spine;
     // 选完角色1后自动切换到角色2
     selectState.target = 2;
     document.querySelector('input[name="target"][value="2"]').checked = true;
   } else {
-    // 角色2：再次点击同一个则取消
-    if (store.c2 && store.c2.id === char.id) store.c2 = null;
-    else store.c2 = { id: char.id, flip: false, drag: true, scale: 1, fx: 0.68, fy: 0.8, accessories: [] };
-    // 两个角色不能相同
-    if (store.c2 && store.c2.id === store.c1.id) {
-      toast("角色2不能和角色1相同哦！");
+    // 角色2：再次点击同一套服装则取消
+    if (store.c2 && store.c2.spine === entry.spine) store.c2 = null;
+    else store.c2 = { id: entry.char.id, spine: entry.spine, flip: false, drag: true, scale: 1, fx: 0.68, fy: 0.8, accessories: [] };
+    // 同一套服装不能重复
+    if (store.c2 && store.c2.spine === store.c1.spine) {
+      toast("角色2不能和角色1穿同一套服装哦！");
       store.c2 = null;
     }
   }
@@ -931,13 +1012,14 @@ function onCardClick(char, card) {
 }
 
 function refreshCardSelection() {
-  const c1 = store.c1.id, c2 = store.c2 ? store.c2.id : null;
+  const s1 = store.c1.spine || (store.c1.id && costumeEntryOf(store.c1) ? costumeEntryOf(store.c1).spine : null);
+  const s2 = store.c2 ? (store.c2.spine || (store.c2.id && costumeEntryOf(store.c2) ? costumeEntryOf(store.c2).spine : null)) : null;
   document.querySelectorAll(".char-card").forEach((card) => {
-    const id = +card.dataset.id;
-    card.classList.toggle("sel-1", id === c1);
-    card.classList.toggle("sel-2", id === c2);
+    const sp = card.dataset.spine;
+    card.classList.toggle("sel-1", sp === s1);
+    card.classList.toggle("sel-2", sp === s2);
   });
-  $("#btn-start").disabled = !c1;
+  $("#btn-start").disabled = !s1;
 }
 
 /* ---------- 主界面 ---------- */
@@ -967,7 +1049,7 @@ function buildPanels() {
     const panel = document.createElement("div");
     panel.className = "panel";
     panel.innerHTML = `
-      <div class="panel-title"><span class="slot-tag">角色${slot}</span>${pet.char.name}</div>
+      <div class="panel-title"><span class="slot-tag">角色${slot}</span>${pet.char.name}（${(costumeEntryOf(pet.cfg) || {}).costume || ""}）</div>
       <div class="panel-btns">
         <button class="btn feed-btn">🍪 喂食</button>
       </div>`;
@@ -1051,6 +1133,7 @@ function initSettings() {
   fillCharSelect($("#set-c1-char"), false);
   $("#set-c1-char").addEventListener("change", async (e) => {
     store.c1.id = +e.target.value;
+    store.c1.spine = null; // 回落到该角色第一套服装
     if (store.c2 && store.c2.id === store.c1.id) { store.c2 = null; toast("角色2已被移除（不能重复）"); }
     saveStore();
     await rebuildPets();
@@ -1063,8 +1146,8 @@ function initSettings() {
     if (!v) store.c2 = null;
     else {
       if (v === store.c1.id) { toast("不能和角色1相同哦！"); e.target.value = store.c2 ? store.c2.id : 0; return; }
-      if (store.c2) store.c2.id = v;
-      else store.c2 = { id: v, flip: false, drag: true, scale: 1, fx: 0.68, fy: 0.8, accessories: [] };
+      if (store.c2) store.c2.id = v, store.c2.spine = null;
+      else store.c2 = { id: v, spine: null, flip: false, drag: true, scale: 1, fx: 0.68, fy: 0.8, accessories: [] };
     }
     saveStore();
     await rebuildPets();

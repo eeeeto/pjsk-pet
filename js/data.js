@@ -169,8 +169,12 @@ const TAP_ANGRY_QUOTES = [
 /* 角色数据 */
 const CHARACTERS = [
   {
-    id: 1, spine: "sd_01ichika_normal", name: "星乃一歌", unit: "Leo/need", personality: "cool",
+    id: 1, name: "星乃一歌", unit: "Leo/need", personality: "cool",
     like: [{ name: "炒面面包", emoji: "🍞" }], dislike: [{ name: "豌豆", emoji: "🫛" }],
+    costumes: [
+      { spine: "sd_01ichika_normal", costume: "校服" },
+      { spine: "sd_01ichika_cloth001", costume: "私服" },
+    ],
     quotes: [
       "我想用歌声，传达给大家……！",
       "今天的练习也拜托你了。",
@@ -183,8 +187,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 2, spine: "sd_02saki_normal", name: "天马咲希", unit: "Leo/need", personality: "happy",
+    id: 2, name: "天马咲希", unit: "Leo/need", personality: "happy",
     like: [{ name: "零食糖果", emoji: "🍬" }], dislike: [{ name: "稀饭", emoji: "🥣" }],
+    costumes: [
+      { spine: "sd_02saki_normal", costume: "校服" },
+      { spine: "sd_02saki_cloth001", costume: "私服" },
+    ],
     quotes: [
       "一歌一歌！看我看我♪",
       "今天超~级开心哦！",
@@ -197,8 +205,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 3, spine: "sd_03honami_normal", name: "望月穗波", unit: "Leo/need", personality: "pure",
+    id: 3, name: "望月穗波", unit: "Leo/need", personality: "pure",
     like: [{ name: "苹果派", emoji: "🥧" }], dislike: [{ name: "芝士", emoji: "🧀" }],
+    costumes: [
+      { spine: "sd_03honami_normal", costume: "校服" },
+      { spine: "sd_03honami_cloth001", costume: "私服" },
+    ],
     quotes: [
       "大家都聚在一起，真好呢。",
       "点心烤好了哦，要尝尝吗？",
@@ -211,8 +223,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 4, spine: "sd_04shiho_normal", name: "日野森志步", unit: "Leo/need", personality: "cool",
+    id: 4, name: "日野森志步", unit: "Leo/need", personality: "cool",
     like: [{ name: "拉面", emoji: "🍜" }, { name: "汉堡", emoji: "🍔" }], dislike: [{ name: "豆腐", emoji: "🍲" }],
+    costumes: [
+      { spine: "sd_04shiho_normal", costume: "校服" },
+      { spine: "sd_04shiho_cloth001", costume: "私服" },
+    ],
     quotes: [
       "……哼，还行吧。",
       "练习是不能偷懒的。",
@@ -225,8 +241,13 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 5, spine: "sd_05minori_normal", name: "花里实乃里", unit: "MORE MORE JUMP!", personality: "pure",
+    id: 5, name: "花里实乃里", unit: "MORE MORE JUMP!", personality: "pure",
     like: [{ name: "三文鱼", emoji: "🍣" }], dislike: [{ name: "西兰花", emoji: "🥦" }],
+    costumes: [
+      { spine: "sd_05minori_normal", costume: "校服" },
+      { spine: "sd_05minori_cloth001", costume: "私服" },
+      { spine: "sd_05minori_unit", costume: "组合服装" },
+    ],
     quotes: [
       "总有一天要站上大舞台！",
       "新体操的练习也要加油！",
@@ -239,8 +260,13 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 6, spine: "sd_06haruka_normal", name: "桐谷遥", unit: "MORE MORE JUMP!", personality: "cool",
+    id: 6, name: "桐谷遥", unit: "MORE MORE JUMP!", personality: "cool",
     like: [{ name: "甜食", emoji: "🍰" }], dislike: [{ name: "芥末", emoji: "🌿" }],
+    costumes: [
+      { spine: "sd_06haruka_normal", costume: "校服" },
+      { spine: "sd_06haruka_cloth001", costume: "私服" },
+      { spine: "sd_06haruka_unit", costume: "组合服装" },
+    ],
     quotes: [
       "严谨地对待每一次舞台。",
       "……被你发现了呢。",
@@ -253,8 +279,13 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 7, spine: "sd_07airi_normal", name: "桃井爱莉", unit: "MORE MORE JUMP!", personality: "happy",
+    id: 7, name: "桃井爱莉", unit: "MORE MORE JUMP!", personality: "happy",
     like: [{ name: "日式点心", emoji: "🍡" }], dislike: [{ name: "肝脏", emoji: "🥩" }],
+    costumes: [
+      { spine: "sd_07airi_normal", costume: "校服" },
+      { spine: "sd_07airi_cloth001", costume: "私服" },
+      { spine: "sd_07airi_unit", costume: "组合服装" },
+    ],
     quotes: [
       "好~！今天也要闪闪发光！",
       "偶像修行，可不轻松哦！",
@@ -267,8 +298,13 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 8, spine: "sd_08shizuku_normal", name: "日野森雫", unit: "MORE MORE JUMP!", personality: "pure",
+    id: 8, name: "日野森雫", unit: "MORE MORE JUMP!", personality: "pure",
     like: [{ name: "乌冬面", emoji: "🍜" }, { name: "豆皮", emoji: "🍘" }], dislike: [{ name: "辣味食物", emoji: "🌶️" }],
+    costumes: [
+      { spine: "sd_08shizuku_normal", costume: "校服" },
+      { spine: "sd_08shizuku_cloth001", costume: "私服" },
+      { spine: "sd_08shizuku_unit", costume: "组合服装" },
+    ],
     quotes: [
       "呵呵……今天也很和平呢。",
       "乌冬面要慢慢吃才好。",
@@ -281,8 +317,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 9, spine: "sd_09kohane_normal", name: "小豆泽心羽", unit: "Vivid BAD SQUAD", personality: "happy",
+    id: 9, name: "小豆泽心羽", unit: "Vivid BAD SQUAD", personality: "happy",
     like: [{ name: "寿桃包", emoji: "🥟" }, { name: "煎堆", emoji: "🍩" }], dislike: [{ name: "醋拌凉菜", emoji: "🥗" }],
+    costumes: [
+      { spine: "sd_09kohane_normal", costume: "校服" },
+      { spine: "sd_09kohane_unit", costume: "组合服装" },
+    ],
     quotes: [
       "唱出真实的心情……！",
       "杏前辈，好帅啊！",
@@ -295,8 +335,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 10, spine: "sd_10an_normal", name: "白石杏", unit: "Vivid BAD SQUAD", personality: "cool",
+    id: 10, name: "白石杏", unit: "Vivid BAD SQUAD", personality: "cool",
     like: [{ name: "朗姆葡萄干冰淇淋", emoji: "🍨" }], dislike: [{ name: "番茄", emoji: "🍅" }],
+    costumes: [
+      { spine: "sd_10an_normal", costume: "校服" },
+      { spine: "sd_10an_unit", costume: "组合服装" },
+    ],
     quotes: [
       "Yo！今天感觉如何？",
       "我爷爷的店，咖啡最赞了。",
@@ -309,8 +353,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 11, spine: "sd_11akito_normal", name: "东云彰人", unit: "Vivid BAD SQUAD", personality: "cool",
+    id: 11, name: "东云彰人", unit: "Vivid BAD SQUAD", personality: "cool",
     like: [{ name: "松饼", emoji: "🥞" }, { name: "芝士蛋糕", emoji: "🍰" }], dislike: [{ name: "胡萝卜", emoji: "🥕" }],
+    costumes: [
+      { spine: "sd_11akito_normal", costume: "校服" },
+      { spine: "sd_11akito_unit", costume: "组合服装" },
+    ],
     quotes: [
       "吵死了，别烦我。",
       "RAD WEEKEND……总有一天会超越！",
@@ -323,8 +371,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 12, spine: "sd_12touya_normal", name: "青柳冬弥", unit: "Vivid BAD SQUAD", personality: "cool",
+    id: 12, name: "青柳冬弥", unit: "Vivid BAD SQUAD", personality: "cool",
     like: [{ name: "咖啡", emoji: "☕" }, { name: "曲奇", emoji: "🍪" }], dislike: [{ name: "章鱼", emoji: "🐙" }],
+    costumes: [
+      { spine: "sd_12touya_normal", costume: "校服" },
+      { spine: "sd_12touya_unit", costume: "组合服装" },
+    ],
     quotes: [
       "嗯，今天也保持平常心。",
       "钢琴的声音，是母亲的记忆。",
@@ -337,8 +389,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 13, spine: "sd_13tsukasa_normal", name: "天马司", unit: "Wonderlands×Showtime", personality: "happy",
+    id: 13, name: "天马司", unit: "Wonderlands×Showtime", personality: "happy",
     like: [{ name: "义式水煮鱼", emoji: "🐟" }, { name: "生姜烧肉", emoji: "🍖" }], dislike: [{ name: "青椒", emoji: "🫑" }],
+    costumes: [
+      { spine: "sd_13tsukasa_normal", costume: "校服" },
+      { spine: "sd_13tsukasa_cloth001", costume: "私服" },
+    ],
     quotes: [
       "世界的司，闪亮登场☆",
       "明星要为世界带来笑容！",
@@ -351,8 +407,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 14, spine: "sd_14emu_normal", name: "凤笑梦", unit: "Wonderlands×Showtime", personality: "happy",
+    id: 14, name: "凤笑梦", unit: "Wonderlands×Showtime", personality: "happy",
     like: [{ name: "鲷鱼烧", emoji: "🐠", note: "（没有讨厌的食物！）" }], dislike: [],
+    costumes: [
+      { spine: "sd_14emu_normal", costume: "校服" },
+      { spine: "sd_14emu_cloth001", costume: "私服" },
+    ],
     quotes: [
       "呜哇！！超级超级开心的说☆",
       "能让大家都笑起来，就是最棒的说！",
@@ -365,8 +425,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 15, spine: "sd_15nene_normal", name: "草薙宁宁", unit: "Wonderlands×Showtime", personality: "cool",
+    id: 15, name: "草薙宁宁", unit: "Wonderlands×Showtime", personality: "cool",
     like: [{ name: "葡萄柚", emoji: "🍊" }], dislike: [{ name: "薄荷味食物", emoji: "🌿" }],
+    costumes: [
+      { spine: "sd_15nene_normal", costume: "校服" },
+      { spine: "sd_15nene_cloth001", costume: "私服" },
+    ],
     quotes: [
       "……啊，好麻烦。",
       "舞台剧？我才没说喜欢……",
@@ -379,8 +443,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 16, spine: "sd_16rui_normal", name: "神代类", unit: "Wonderlands×Showtime", personality: "cool",
+    id: 16, name: "神代类", unit: "Wonderlands×Showtime", personality: "cool",
     like: [{ name: "弹珠汽水糖", emoji: "🍬" }], dislike: [{ name: "所有蔬菜", emoji: "🥬" }],
+    costumes: [
+      { spine: "sd_16rui_normal", costume: "校服" },
+      { spine: "sd_16rui_cloth001", costume: "私服" },
+    ],
     quotes: [
       "呵呵……有趣的实验开始了。",
       "艺术，就是要让人惊叹！",
@@ -393,8 +461,11 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 17, spine: "sd_17kanade_normal", name: "宵崎奏", unit: "Nightcord at 25:00", personality: "pure",
+    id: 17, name: "宵崎奏", unit: "Nightcord at 25:00", personality: "pure",
     like: [{ name: "杯面", emoji: "🍜" }, { name: "罐头", emoji: "🥫" }], dislike: [{ name: "气味独特的食物", emoji: "🧄", note: "（香菜、纳豆之类）" }],
+    costumes: [
+      { spine: "sd_17kanade_normal", costume: "校服" },
+    ],
     quotes: [
       "……写了新的曲子。",
       "为了能拯救某人……我要作曲。",
@@ -407,8 +478,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 18, spine: "sd_18mafuyu_normal", name: "朝比奈真冬", unit: "Nightcord at 25:00", personality: "pure",
+    id: 18, name: "朝比奈真冬", unit: "Nightcord at 25:00", personality: "pure",
     like: [{ name: "妈妈做的菜", emoji: "🍳" }, { name: "鱿鱼", emoji: "🦑", note: "（讨厌的食物未知）" }], dislike: [],
+    costumes: [
+      { spine: "sd_18mafuyu_normal", costume: "校服" },
+      { spine: "sd_18mafuyu_cloth001", costume: "私服" },
+    ],
     quotes: [
       "……抱歉，我并不可爱。",
       "妈妈的期待……我还不能停下。",
@@ -421,8 +496,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 19, spine: "sd_19ena_normal", name: "东云绘名", unit: "Nightcord at 25:00", personality: "cool",
+    id: 19, name: "东云绘名", unit: "Nightcord at 25:00", personality: "cool",
     like: [{ name: "薄煎饼", emoji: "🥞" }, { name: "芝士蛋糕", emoji: "🍰" }], dislike: [{ name: "胡萝卜", emoji: "🥕" }],
+    costumes: [
+      { spine: "sd_19ena_normal", costume: "校服" },
+      { spine: "sd_19ena_cloth001", costume: "私服" },
+    ],
     quotes: [
       "呀——！又被编辑骂了！",
       "画画就是要靠积累！",
@@ -435,8 +514,12 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 20, spine: "sd_20mizuki_normal", name: "晓山瑞希", unit: "Nightcord at 25:00", personality: "cool",
+    id: 20, name: "晓山瑞希", unit: "Nightcord at 25:00", personality: "cool",
     like: [{ name: "咖喱饭", emoji: "🍛" }, { name: "炸薯条", emoji: "🍟" }], dislike: [{ name: "菌类", emoji: "🍄" }],
+    costumes: [
+      { spine: "sd_20mizuki_normal", costume: "校服" },
+      { spine: "sd_20mizuki_cloth001", costume: "私服" },
+    ],
     quotes: [
       "呀嚯——！今天心情超好♪",
       "这个设计怎么样？很可爱吧？",
@@ -449,8 +532,16 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 21, spine: "sd_21miku_normal", name: "初音未来", unit: "Virtual Singer", personality: "normal",
+    id: 21, name: "初音未来", unit: "Virtual Singer", personality: "normal",
     like: [{ name: "大葱", emoji: "🌿" }], dislike: [],
+    costumes: [
+      { spine: "sd_21miku_normal", costume: "标准服装" },
+      { spine: "sd_21miku_band", costume: "乐队服装" },
+      { spine: "sd_21miku_street", costume: "街头服装" },
+      { spine: "sd_21miku_wonder", costume: "游乐园服装" },
+      { spine: "sd_21miku_idol", costume: "偶像服装" },
+      { spine: "sd_21miku_night", costume: "深夜服装" },
+    ],
     quotes: [
       "大家好！我是初音未来♪",
       "今天想唱什么歌呢？",
@@ -463,8 +554,16 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 22, spine: "sd_21miku_band", name: "镜音铃", unit: "Virtual Singer", personality: "happy",
+    id: 22, name: "镜音铃", unit: "Virtual Singer", personality: "happy",
     like: [{ name: "橘子", emoji: "🍊" }], dislike: [],
+    costumes: [
+      { spine: "sd_22rin_normal", costume: "标准服装" },
+      { spine: "sd_22rin_band", costume: "乐队服装" },
+      { spine: "sd_22rin_street", costume: "街头服装" },
+      { spine: "sd_22rin_wonder", costume: "游乐园服装" },
+      { spine: "sd_22rin_idol", costume: "偶像服装" },
+      { spine: "sd_22rin_night", costume: "深夜服装" },
+    ],
     quotes: [
       "橘子！今天的橘子超甜！",
       "嘿嘿，我可爱吧！",
@@ -477,8 +576,16 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 23, spine: "sd_21miku_street", name: "镜音连", unit: "Virtual Singer", personality: "happy",
+    id: 23, name: "镜音连", unit: "Virtual Singer", personality: "happy",
     like: [{ name: "香蕉", emoji: "🍌" }], dislike: [],
+    costumes: [
+      { spine: "sd_23len_normal", costume: "标准服装" },
+      { spine: "sd_23len_band", costume: "乐队服装" },
+      { spine: "sd_23len_street", costume: "街头服装" },
+      { spine: "sd_23len_wonder", costume: "游乐园服装" },
+      { spine: "sd_23len_idol", costume: "偶像服装" },
+      { spine: "sd_23len_night", costume: "深夜服装" },
+    ],
     quotes: [
       "哼，我可是很帅气的！",
       "香蕉营养满分！",
@@ -491,8 +598,16 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 24, spine: "sd_21miku_wonder", name: "巡音流歌", unit: "Virtual Singer", personality: "cool",
+    id: 24, name: "巡音流歌", unit: "Virtual Singer", personality: "cool",
     like: [{ name: "鲜鱼", emoji: "🐟" }], dislike: [],
+    costumes: [
+      { spine: "sd_24luka_normal", costume: "标准服装" },
+      { spine: "sd_24luka_band", costume: "乐队服装" },
+      { spine: "sd_24luka_street", costume: "街头服装" },
+      { spine: "sd_24luka_wonder", costume: "游乐园服装" },
+      { spine: "sd_24luka_idol", costume: "偶像服装" },
+      { spine: "sd_24luka_night", costume: "深夜服装" },
+    ],
     quotes: [
       "呵呵，今天也很从容呢。",
       "鱼，要吃新鲜的才行。",
@@ -505,8 +620,16 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 25, spine: "sd_21miku_idol", name: "MEIKO", unit: "Virtual Singer", personality: "happy",
+    id: 25, name: "MEIKO", unit: "Virtual Singer", personality: "happy",
     like: [{ name: "美酒", emoji: "🍶", note: "（不能多喝哦！）" }], dislike: [],
+    costumes: [
+      { spine: "sd_25meiko_normal", costume: "标准服装" },
+      { spine: "sd_25meiko_band", costume: "乐队服装" },
+      { spine: "sd_25meiko_street", costume: "街头服装" },
+      { spine: "sd_25meiko_wonder", costume: "游乐园服装" },
+      { spine: "sd_25meiko_idol", costume: "偶像服装" },
+      { spine: "sd_25meiko_night", costume: "深夜服装" },
+    ],
     quotes: [
       "哟！今天也来一杯吗？",
       "酒虽然好，可不能贪杯哦！",
@@ -519,8 +642,16 @@ const CHARACTERS = [
     ],
   },
   {
-    id: 26, spine: "sd_21miku_night", name: "KAITO", unit: "Virtual Singer", personality: "normal",
+    id: 26, name: "KAITO", unit: "Virtual Singer", personality: "normal",
     like: [{ name: "冰淇淋", emoji: "🍨" }], dislike: [],
+    costumes: [
+      { spine: "sd_26kaito_normal", costume: "标准服装" },
+      { spine: "sd_26kaito_band", costume: "乐队服装" },
+      { spine: "sd_26kaito_street", costume: "街头服装" },
+      { spine: "sd_26kaito_wonder", costume: "游乐园服装" },
+      { spine: "sd_26kaito_idol", costume: "偶像服装" },
+      { spine: "sd_26kaito_night", costume: "深夜服装" },
+    ],
     quotes: [
       "嗯，冰淇淋是最高的人类智慧！",
       "呜……谁动了我的冰淇淋！",

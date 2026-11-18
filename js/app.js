@@ -1091,8 +1091,8 @@ function buildPanels() {
   const panels = $("#panels");
   panels.innerHTML = "";
   const yume = store.mode === "yume";
-  // 梦向模式：聊天输入合并进面板，隐藏独立聊天条
-  $("#chat-bar").classList.toggle("hidden", yume);
+  // 独立聊天条已废弃：梦向模式用面板内输入框，推角模式无聊天输入
+  $("#chat-bar").classList.add("hidden");
   for (const slot of [1, 2]) {
     const pet = pets[slot];
     if (!pet) continue;

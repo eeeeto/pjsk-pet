@@ -534,7 +534,7 @@ body {
 
 /* 梦向模式面板：两行输入框 + 喂食/发送 */
 .panel.yume-panel {
-  width: min(86%, 420px);
+  width: min(96%, 560px);
   padding: 8px 10px 10px;
 }
 .chat-area {
@@ -594,7 +594,7 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   /* 底部面板避让 iPhone 手势条 */
   #panels { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 0 8px; }
   .panel { flex: 1; max-width: 220px; }
-  .panel.yume-panel { flex: 0 1 auto; max-width: none; width: min(92%, 440px); }
+  .panel.yume-panel { flex: 0 1 auto; max-width: none; width: 100%; }
 
   /* 弹窗贴满小屏 */
   .modal { align-items: flex-end; }

@@ -4,13 +4,15 @@
 const STORE_KEY = "pjsk-pet-settings-v1";
 
 const defaultStore = () => ({
+  mode: "oshi", // oshi=推角模式（双人）| yume=梦向模式（仅角色1+聊天）
   c1: { id: null, flip: false, drag: true, scale: 1, fx: 0.5, fy: 0.8, accessories: [] },
-  c2: null, // { id, flip, drag, scale, fx, fy, accessories }
+  c2: null, // { id, spine, flip, drag, scale, fx, fy, accessories }
   theme: "cream",
   bgImage: null, // dataURL
   ui: "#f28ab2",
   decoLibrary: [], // 挂件库 [{ name, src }]，全角色共用
   charQuotes: {},  // 每角色词条库 { [charId]: [词条] }
+  loveQuotes: true, // 恋爱向词条分组（爱心/亲亲颜文字），默认开启
 });
 
 let store = defaultStore();
@@ -30,6 +32,11 @@ function normalizeStore() {
   if (!Array.isArray(store.decoLibrary)) store.decoLibrary = [];
   store.decoLibrary = store.decoLibrary.filter((d) => d && d.src);
   if (!store.charQuotes || typeof store.charQuotes !== "object") store.charQuotes = {};
+  // 恋爱向开关：老存档没有该字段时默认开启
+  if (typeof store.loveQuotes !== "boolean") store.loveQuotes = true;
+  // 模式：非法值回落推角模式；梦向模式只能有角色1
+  if (store.mode !== "oshi" && store.mode !== "yume") store.mode = "oshi";
+  if (store.mode === "yume") store.c2 = null;
   // 服装存档迁移：cfg.spine 缺失或不属于该角色时，回落到该角色第一套服装
   for (const cfg of [store.c1, store.c2]) {
     if (cfg && cfg.id) {
@@ -541,6 +548,7 @@ function startWalk(pet) {
   // 偶尔（20%）反向走
   if (Math.random() < 0.2) dir = -dir;
   pet.walkLegs = 0;
+  pet.walkAnim = walkAnim;
   beginWalkLeg(pet, dir);
   playAnim(pet, walkAnim, true);
 }
@@ -662,8 +670,12 @@ function onPetTap(pet) {
     if (angry && !pet.walkTarget) { playAnim(pet, angry, false); pet.pendingIdle = true; capOneShot(pet, angry, 3200); }
     return;
   }
-  // 说一句该角色词条库里的话
-  speak(pet.slot, pick(getQuotes(pet.char.id)));
+  // 说一句该角色词条库里的话；恋爱向开启时有概率说爱心/亲亲颜文字
+  if (store.loveQuotes && Math.random() < 0.3) {
+    speak(pet.slot, pick(LOVE_QUOTES), "love");
+  } else {
+    speak(pet.slot, pick(getQuotes(pet.char.id)));
+  }
   // 播放说话动作（动画较长，超时自动回到待机，保证下次点击有新反应）
   const talk = animName(pet.data, pet.prefix, "talk");
   if (talk && !pet.walkTarget) { playAnim(pet, talk, false); pet.pendingIdle = true; capOneShot(pet, talk, 2800); }
@@ -690,37 +702,47 @@ function tickerUpdate() {
     if (!pet || !pet.spine) continue;
     // 行走移动（贴地走向目标点，方向由 walkDir 决定）
     if (pet.walkTarget != null) {
-      const speed = W * 0.055 * (app.ticker.deltaMS / 1000);
-      const tx = pet.walkTarget * W;
-      const dx = tx - pet.spine.x;
-      // 走路期间逐渐回到地面高度
-      if (pet.walkFy != null) {
-        const stepY = H * 0.05 * (app.ticker.deltaMS / 1000);
-        const dy = pet.walkFy * H - pet.spine.y;
-        if (Math.abs(dy) > stepY) pet.spine.y += Math.sign(dy) * stepY;
-      }
-      if (Math.abs(dx) < speed) {
-        // 走到目标边缘：停在原地（位置写回配置），待在走到的地方
-        pet.spine.x = tx;
+      // 走路动画被打断或停止时，立即停止位移，待在原地
+      const cur = pet.spine.state.getCurrent(0);
+      if (!cur || cur.animation.name !== pet.walkAnim) {
         pet.walkTarget = null;
         capturePetPos(pet);
-        pet.walkLegs = (pet.walkLegs || 0) + 1;
-        // 到达屏幕边缘后翻转朝向、往相反方向走；偶尔（35%）停下休息，最多连走4段
-        if (pet.walkLegs < 4 && Math.random() > 0.35) {
-          beginWalkLeg(pet, -(pet.walkDir || 1));
-          playAnim(pet, animName(pet.data, pet.prefix, "walk"), true);
-          scheduleNextAction(pet, rand(5000, 15000));
-        } else {
-          applyPetLayout(pet); // 恢复用户设置的朝向
-          playIdle(pet);
-          scheduleNextAction(pet);
-        }
+        applyPetLayout(pet);
+        playIdle(pet);
+        scheduleNextAction(pet);
       } else {
-        pet.spine.x += Math.sign(dx) * speed;
-        // 保持朝向
-        const s = pet.fitScale * (pet.cfg.scale || 1);
-        const needMirror = (pet.walkDir > 0) !== !!pet.cfg.flip;
-        pet.spine.scale.x = (needMirror ? -1 : 1) * s;
+        const speed = W * 0.055 * (app.ticker.deltaMS / 1000);
+        const tx = pet.walkTarget * W;
+        const dx = tx - pet.spine.x;
+        // 走路期间逐渐回到地面高度
+        if (pet.walkFy != null) {
+          const stepY = H * 0.05 * (app.ticker.deltaMS / 1000);
+          const dy = pet.walkFy * H - pet.spine.y;
+          if (Math.abs(dy) > stepY) pet.spine.y += Math.sign(dy) * stepY;
+        }
+        if (Math.abs(dx) < speed) {
+          // 走到目标边缘：停在原地（位置写回配置），待在走到的地方
+          pet.spine.x = tx;
+          pet.walkTarget = null;
+          capturePetPos(pet);
+          pet.walkLegs = (pet.walkLegs || 0) + 1;
+          // 到达屏幕边缘后翻转朝向、往相反方向走；偶尔（35%）停下休息，最多连走4段
+          if (pet.walkLegs < 4 && Math.random() > 0.35) {
+            beginWalkLeg(pet, -(pet.walkDir || 1));
+            playAnim(pet, animName(pet.data, pet.prefix, "walk"), true);
+            scheduleNextAction(pet, rand(5000, 15000));
+          } else {
+            applyPetLayout(pet); // 恢复用户设置的朝向
+            playIdle(pet);
+            scheduleNextAction(pet);
+          }
+        } else {
+          pet.spine.x += Math.sign(dx) * speed;
+          // 保持朝向
+          const s = pet.fitScale * (pet.cfg.scale || 1);
+          const needMirror = (pet.walkDir > 0) !== !!pet.cfg.flip;
+          pet.spine.scale.x = (needMirror ? -1 : 1) * s;
+        }
       }
     }
     // 对话框跟随 + 超时隐藏
@@ -1046,7 +1068,8 @@ function refreshCardSelection() {
 
 /* ---------- 主界面 ---------- */
 async function enterMain() {
-  // 保险：同一角色（含不同服装）不能同时出场
+  // 保险：梦向模式下只有角色1；同一角色（含不同服装）不能同时出场
+  if (store.mode === "yume") store.c2 = null;
   if (store.c2 && store.c2.id === store.c1.id) store.c2 = null;
   $("#select-screen").classList.add("hidden");
   $("#main-screen").classList.remove("hidden");
@@ -1140,6 +1163,78 @@ function toast(msg) {
 }
 
 /* ---------- 设置面板 ---------- */
+/* ---------- 模式切换 ---------- */
+const MODE_DESC = {
+  oshi: "推角模式：角色1 + 角色2 双人房间，点击小人会随机说话。",
+  yume: "梦向模式：只有角色1陪着你，用房间下方的输入框和 TA 聊天吧。",
+};
+
+function applyModeUI() {
+  const yume = store.mode === "yume";
+  document.querySelectorAll('input[name="mode"]').forEach((r) => {
+    r.checked = r.value === store.mode;
+    const label = r.closest(".mode-opt");
+    if (label) label.classList.toggle("active", r.checked);
+  });
+  const desc = $("#mode-desc");
+  if (desc) desc.textContent = MODE_DESC[store.mode] || "";
+  const c2sec = $("#c2-settings");
+  if (c2sec) c2sec.classList.toggle("hidden", yume);
+}
+
+function initModeSwitch() {
+  document.querySelectorAll('input[name="mode"]').forEach((r) => {
+    r.addEventListener("change", async (e) => {
+      if (!e.target.checked || store.mode === e.target.value) return;
+      store.mode = e.target.value;
+      if (store.mode === "yume") {
+        const hadC2 = !!(store.c2 && store.c2.id);
+        store.c2 = null;
+        saveStore();
+        toast(hadC2 ? "已切换到梦向模式：角色2回家了，只剩角色1陪着你 ♡" : "已切换到梦向模式 ♡");
+      } else {
+        saveStore();
+        toast("已切换到推角模式");
+      }
+      syncSettingsUI();
+      await rebuildPets();
+      buildPanels();
+    });
+  });
+}
+
+/* ---------- 房间聊天输入框 ---------- */
+function initChat() {
+  const input = $("#chat-input");
+  const send = $("#chat-send");
+  const doSend = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    const active = [1, 2].filter((s) => pets[s]);
+    if (!active.length) { toast("还没有角色在房间里哦"); return; }
+    // 多人时随机选一位回复；梦向模式只有角色1
+    const slot = active.length === 1 ? active[0] : pick(active);
+    const pet = pets[slot];
+    input.value = "";
+    // 思考中 …（1~2 秒后回复）
+    speak(slot, "…", "think");
+    setTimeout(() => {
+      if (pets[slot] !== pet) return;
+      const list = getQuotes(pet.char.id);
+      if (!list.length) { speak(slot, "……"); return; }
+      const n = randInt(1, Math.min(3, list.length));
+      const pool = [...list];
+      const chosen = [];
+      for (let i = 0; i < n; i++) chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      speak(slot, chosen.join("，"));
+      const talk = animName(pet.data, pet.prefix, "talk");
+      if (talk && !pet.walkTarget) { playAnim(pet, talk, false); pet.pendingIdle = true; capOneShot(pet, talk, 2800); }
+    }, rand(1000, 2000));
+  };
+  send.addEventListener("click", doSend);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
+}
+
 function initSettings() {
   const modal = $("#settings-modal");
   $("#btn-settings").addEventListener("click", () => { syncSettingsUI(); modal.classList.remove("hidden"); });
@@ -1198,6 +1293,15 @@ function initSettings() {
     syncSettingsUI();
   });
   bindSlotToggles(2);
+
+  // 模式切换
+  initModeSwitch();
+  // 恋爱向词条开关
+  $("#set-love").addEventListener("change", (e) => {
+    store.loveQuotes = e.target.checked;
+    saveStore();
+    toast(store.loveQuotes ? "恋爱向词条已开启 ♡" : "恋爱向词条已关闭");
+  });
 
   // 背景
   const themeBox = $("#theme-swatches");
@@ -1419,11 +1523,11 @@ function renderQuoteSections() {
     sec.innerHTML = `
       <h4>${slot === 1 ? "角色1" : "角色2"} · ${char.name}</h4>
       <div class="quote-chips"></div>
+      <textarea class="quote-input" rows="4" placeholder="给 ${char.name} 添加新词条～&#10;可以写多行，每一行会分成一条词条"></textarea>
       <div class="row">
-        <input type="text" class="quote-input" placeholder="给 ${char.name} 添加新词条～">
         <button class="btn small q-add">添加</button>
-      </div>
-      <button class="btn small ghost q-reset">恢复默认词条</button>`;
+        <button class="btn small ghost q-reset">恢复默认词条</button>
+      </div>`;
     const chips = sec.querySelector(".quote-chips");
     const input = sec.querySelector(".quote-input");
     const quotes = getQuotes(char.id);
@@ -1444,17 +1548,17 @@ function renderQuoteSections() {
       });
     };
     const add = () => {
-      const v = input.value.trim();
-      if (!v) return;
+      // 每一行是一条词条；空行忽略
+      const lines = input.value.split("\n").map((s) => s.trim()).filter(Boolean);
+      if (!lines.length) return;
       const list = getQuotes(char.id);
-      if (list.length >= 200) { toast("词条太多啦，先删掉一些吧"); return; }
-      list.push(v);
+      if (list.length + lines.length > 200) { toast("词条太多啦，先删掉一些吧"); return; }
+      list.push(...lines);
       input.value = "";
       saveStore(); render();
-      toast(`${char.name} 的词条已添加，点它试试！`);
+      toast(lines.length > 1 ? `已添加 ${lines.length} 条词条，点小人试试！` : `${char.name} 的词条已添加，点它试试！`);
     };
     sec.querySelector(".q-add").addEventListener("click", add);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
     sec.querySelector(".q-reset").addEventListener("click", () => {
       store.charQuotes[char.id] = [...DEFAULT_QUOTES];
       saveStore(); render(); toast(`${char.name} 的词条已恢复默认`);
@@ -1479,6 +1583,8 @@ function syncSettingsUI() {
   document.querySelectorAll("#theme-swatches .swatch").forEach((b) => b.classList.toggle("active", b.dataset.theme === store.theme && !store.bgImage));
   document.querySelectorAll("#ui-swatches .swatch").forEach((b) => b.classList.toggle("active", b.title && UI_COLORS.find((c) => c.color === store.ui && c.name === b.title)));
   $("#set-uicolor").value = store.ui;
+  $("#set-love").checked = !!store.loveQuotes;
+  applyModeUI();
   renderQuoteSections();
   renderAccList(1); renderAccList(2);
 }
@@ -1505,6 +1611,7 @@ async function boot() {
   skelBuf = getEmbed() ? b64ToBytes(getEmbed().skel) : await (await fetch(SKEL_URL)).arrayBuffer();
   applyTheme();
   initSettings();
+  initChat();
   document.querySelectorAll('input[name="target"]').forEach((r) => {
     r.addEventListener("change", (e) => { selectState.target = +e.target.value; });
   });

@@ -240,6 +240,9 @@ body {
   border-bottom: none;
 }
 .bubble[data-mood="happy"] { background: #fff0f4; }
+.bubble[data-mood="love"] { background: #ffe4ec; border-color: #f398b5; }
+.bubble[data-mood="love"]::after { border-top-color: #f398b5; }
+.bubble[data-mood="think"] { background: #f5f1e8; color: #9a8f80; }
 .bubble[data-mood="sad"] { background: #eef3fa; border-color: #9db8d4; }
 .bubble[data-mood="sad"]::after { border-top-color: #9db8d4; }
 @keyframes bubbleIn {
@@ -421,9 +424,13 @@ body {
 }
 .quote-chip button:hover { background: #e0b9ae; color: #fff; }
 .quote-input {
-  flex: 1; padding: 8px 12px; border-radius: 10px;
+  width: 100%; padding: 9px 12px; border-radius: 12px;
   border: 1.5px solid #e0d4c0; font-size: 14px;
+  font-family: inherit; line-height: 1.5;
+  resize: vertical; min-height: 88px;
+  background: #fffdf8; box-sizing: border-box;
 }
+.quote-input:focus { outline: none; border-color: var(--ui, #f28ab2); }
 .food-btn {
   display: inline-flex; align-items: center; gap: 6px;
   border: 2px solid var(--ui);
@@ -501,7 +508,43 @@ body {
   .app-title { font-size: 18px; }
 }
 
-/* ================= 挂件摆放确认条 ================= */
+/* 房间聊天输入条 */
+#chat-bar {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  width: min(86%, 420px);
+  display: flex; gap: 8px; align-items: center;
+  z-index: 40;
+}
+#chat-input {
+  flex: 1; min-width: 0;
+  border: none; border-radius: 999px; padding: 10px 16px;
+  font-size: 14px; background: rgba(255, 255, 255, .93);
+  box-shadow: 0 3px 12px rgba(120, 90, 60, .18);
+  outline: none;
+}
+#chat-input:focus { box-shadow: 0 3px 14px color-mix(in srgb, var(--ui, #f28ab2) 40%, rgba(120,90,60,.2)); }
+#chat-send {
+  flex-shrink: 0;
+  border: none; border-radius: 999px; padding: 9px 18px;
+  background: var(--ui, #f28ab2); color: #fff; font-size: 14px; cursor: pointer;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--ui, #f28ab2) 45%, rgba(0, 0, 0, .12));
+}
+#chat-send:active { transform: scale(.95); }
+
+/* 模式切换 */
+.mode-switch { display: flex; gap: 10px; }
+.mode-opt {
+  flex: 1; text-align: center; padding: 10px 8px;
+  background: #fff; border: 2px solid #e8dcc8; border-radius: 12px;
+  font-size: 14px; cursor: pointer; color: #5a4636;
+  transition: border-color .12s, background .12s;
+}
+.mode-opt.active { border-color: var(--ui, #f28ab2); color: var(--ui, #f28ab2); font-weight: 700; background: #fff6fa; }
+.mode-opt input { display: none; }
+.mode-desc { margin-top: 8px; font-size: 12px; color: #a3937e; line-height: 1.5; }
+
+/* 挂件摆放确认条 */
 #place-bar {
   position: fixed;
   left: 50%; transform: translateX(-50%);

@@ -1001,9 +1001,9 @@ function onCardClick(entry, card) {
     // 角色2：再次点击同一套服装则取消
     if (store.c2 && store.c2.spine === entry.spine) store.c2 = null;
     else store.c2 = { id: entry.char.id, spine: entry.spine, flip: false, drag: true, scale: 1, fx: 0.68, fy: 0.8, accessories: [] };
-    // 同一套服装不能重复
-    if (store.c2 && store.c2.spine === store.c1.spine) {
-      toast("角色2不能和角色1穿同一套服装哦！");
+    // 同一个角色不能同时出场两套服装
+    if (store.c2 && store.c2.id === store.c1.id) {
+      toast("同一个角色不能同时出场两套服装哦！");
       store.c2 = null;
     }
   }
@@ -1018,6 +1018,9 @@ function refreshCardSelection() {
     const sp = card.dataset.spine;
     card.classList.toggle("sel-1", sp === s1);
     card.classList.toggle("sel-2", sp === s2);
+    // 与角色1相同角色的其他服装卡片变暗提示（不能同时出场）
+    const entry = COSTUME_LIST.find((x) => x.spine === sp);
+    card.classList.toggle("same-char", !!store.c1.id && entry && entry.char.id === store.c1.id);
   });
   $("#btn-start").disabled = !s1;
 }
@@ -1138,6 +1141,16 @@ function initSettings() {
     saveStore();
     await rebuildPets();
     buildPanels();
+    syncSettingsUI();
+  });
+  // 服装切换
+  $("#set-c1-costume").addEventListener("change", async (e) => {
+    if (!store.c1.id || !e.target.value) return;
+    store.c1.spine = e.target.value;
+    saveStore();
+    await rebuildPets();
+    buildPanels();
+    syncSettingsUI();
   });
   bindSlotToggles(1);
   fillCharSelect($("#set-c2-char"), true);
@@ -1152,6 +1165,16 @@ function initSettings() {
     saveStore();
     await rebuildPets();
     buildPanels();
+    syncSettingsUI();
+  });
+  // 服装切换
+  $("#set-c2-costume").addEventListener("change", async (e) => {
+    if (!store.c2 || !e.target.value) return;
+    store.c2.spine = e.target.value;
+    saveStore();
+    await rebuildPets();
+    buildPanels();
+    syncSettingsUI();
   });
   bindSlotToggles(2);
 
@@ -1204,6 +1227,26 @@ function fillCharSelect(sel, optional) {
     opt.textContent = `${c.name}（${c.unit}）`;
     sel.appendChild(opt);
   });
+}
+
+// 按当前角色填充服装下拉
+function fillCostumeSelect(sel, charId, currentSpine) {
+  sel.innerHTML = "";
+  const char = charById(charId);
+  if (!char) {
+    sel.disabled = true;
+    sel.innerHTML = `<option value="">（未选择角色）</option>`;
+    return;
+  }
+  sel.disabled = false;
+  char.costumes.forEach((ct) => {
+    const opt = document.createElement("option");
+    opt.value = ct.spine;
+    opt.textContent = ct.costume;
+    sel.appendChild(opt);
+  });
+  const cur = char.costumes.find((x) => x.spine === currentSpine) || char.costumes[0];
+  sel.value = cur.spine;
 }
 
 function bindSlotToggles(slot) {
@@ -1404,10 +1447,12 @@ function renderQuoteSections() {
 function syncSettingsUI() {
   const c1 = store.c1, c2 = store.c2 || { id: 0, flip: false, drag: true, scale: 1 };
   $("#set-c1-char").value = c1.id || "";
+  fillCostumeSelect($("#set-c1-costume"), c1.id, c1.spine);
   $("#set-c1-flip").checked = !!c1.flip;
   $("#set-c1-drag").checked = !!c1.drag;
   $("#set-c1-scale").value = c1.scale || 1;
   $("#set-c2-char").value = c2.id || 0;
+  fillCostumeSelect($("#set-c2-costume"), c2.id || 0, c2.spine);
   $("#set-c2-flip").checked = !!c2.flip;
   $("#set-c2-drag").checked = c2.drag !== false;
   $("#set-c2-scale").value = c2.scale || 1;

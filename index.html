@@ -44,7 +44,7 @@
       <div id="table">
         <div class="table-top"></div>
         <div class="table-leg"></div>
-        <div class="teacup">☕</div>
+        <div class="teacup" id="table-deco">☕</div>
       </div>
       <div id="stage"></div>
       <div id="fx-layer"></div>
@@ -86,6 +86,13 @@
           <button class="btn small ghost" id="set-bgm-reset" hidden>恢复默认</button>
         </div>
         <input type="file" id="bgm-file" accept="audio/*" hidden>
+        <div class="row"><label>桌上小物</label><input type="text" id="set-tabledeco-emoji" maxlength="8" placeholder="输入 emoji，如 🍰"></div>
+        <div class="row">
+          <label></label>
+          <button class="btn small" id="set-tabledeco-import">导入图片</button>
+          <button class="btn small ghost" id="set-tabledeco-reset">恢复 ☕</button>
+        </div>
+        <input type="file" id="tabledeco-file" accept="image/*" hidden>
       </section>
 
       <section>

@@ -14,6 +14,7 @@ const defaultStore = () => ({
   charQuotes: {},  // 每角色词条库 { [charId]: [词条] }
   loveQuotes: true, // 恋爱向词条分组（爱心/亲亲颜文字），默认开启
   bgm: { on: true, volume: 0.4, custom: false }, // 背景音乐（两种模式通用；custom=已导入自定义 MP3）
+  tableDeco: { type: "emoji", value: "☕" }, // 桌上小物：emoji 或导入图片（dataURL）
 });
 
 let store = defaultStore();
@@ -41,6 +42,13 @@ function normalizeStore() {
   if (typeof store.bgm.volume !== "number") store.bgm.volume = 0.4;
   store.bgm.volume = Math.min(1, Math.max(0, store.bgm.volume));
   if (typeof store.bgm.custom !== "boolean") store.bgm.custom = false;
+  // 桌上小物兜底
+  if (!store.tableDeco || typeof store.tableDeco !== "object" || !store.tableDeco.value) {
+    store.tableDeco = { type: "emoji", value: "☕" };
+  }
+  if (store.tableDeco.type !== "emoji" && store.tableDeco.type !== "image") {
+    store.tableDeco = { type: "emoji", value: "☕" };
+  }
   // 模式：非法值回落推角模式；梦向模式只能有角色1
   if (store.mode !== "oshi" && store.mode !== "yume") store.mode = "oshi";
   if (store.mode === "yume") store.c2 = null;
@@ -759,6 +767,23 @@ function tickerUpdate() {
       else positionBubble(slot);
     }
   }
+  // 图层顺序：y 坐标越靠下（值越大）的小人显示在上层
+  updatePetZ();
+}
+
+// 两只小人在走动/拖动时按 y 排序：更靠下（近处）的在上层
+function updatePetZ() {
+  const a = pets[1], b = pets[2];
+  if (!a || !a.spine || !b || !b.spine) return;
+  if (a.spine.y === b.spine.y) return;
+  const under = a.spine.y < b.spine.y ? a : b; // y 小 = 屏幕上方 = 远处 = 下层
+  const over = a.spine.y < b.spine.y ? b : a;
+  const ui = app.stage.getChildIndex(under.spine);
+  const oi = app.stage.getChildIndex(over.spine);
+  if (ui > oi) {
+    app.stage.setChildIndex(under.spine, oi);
+    app.stage.setChildIndex(over.spine, ui);
+  }
 }
 
 /* ---------- 表情/粒子特效 ---------- */
@@ -937,10 +962,16 @@ function drawRoomFurniture(ctx, W, H, theme) {
   ctx.beginPath();
   ctx.ellipse(tx + tw / 2, ty + 13, tw / 2, 13, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.font = `${mobile ? 17 : 24}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.fillText("☕", tx + tw / 2, ty - 2);
+  const td = store.tableDeco || { type: "emoji", value: "☕" };
+  if (td.type === "image" && tableDecoImg && tableDecoImg.complete && tableDecoImg.naturalWidth > 0) {
+    const s = mobile ? 28 : 38;
+    ctx.drawImage(tableDecoImg, tx + tw / 2 - s / 2, ty - 6 - s, s, s);
+  } else {
+    ctx.fillStyle = "#fff";
+    ctx.font = `${mobile ? 17 : 24}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(td.type === "image" ? "☕" : (td.value || "☕"), tx + tw / 2, ty - 2);
+  }
   ctx.textAlign = "start";
 }
 
@@ -1366,6 +1397,46 @@ function initBGM() {
   bgmPlay(); // 部分环境允许直接播放
 }
 
+/* ---------- 桌上小物（通用） ---------- */
+let tableDecoImg = null;
+
+// 把导入图片压缩到 maxSize 以内的 PNG dataURL，避免撑爆 localStorage
+function compressImageToDataUrl(file, maxSize) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * s));
+      c.height = Math.max(1, Math.round(img.height * s));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/png"));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("bad image")); };
+    img.src = url;
+  });
+}
+
+function applyTableDeco() {
+  const el = $("#table-deco");
+  if (!el) return;
+  const d = store.tableDeco || { type: "emoji", value: "☕" };
+  el.classList.toggle("img-mode", d.type === "image");
+  if (d.type === "image") {
+    el.textContent = "";
+    el.style.backgroundImage = `url("${d.value}")`;
+    // 预解码，供拍照合成使用
+    tableDecoImg = new Image();
+    tableDecoImg.src = d.value;
+  } else {
+    el.style.backgroundImage = "";
+    el.textContent = d.value || "☕";
+    tableDecoImg = null;
+  }
+}
+
 function initSettings() {
   const modal = $("#settings-modal");
   $("#btn-settings").addEventListener("click", () => { syncSettingsUI(); modal.classList.remove("hidden"); });
@@ -1492,6 +1563,51 @@ function initSettings() {
     if (store.bgm.on) bgmPlay();
     syncSettingsUI();
     toast("已恢复默认 BGM");
+  });
+
+  // 桌上小物（通用）
+  $("#set-tabledeco-emoji").addEventListener("change", (e) => {
+    const v = e.target.value.trim();
+    if (!v) return;
+    store.tableDeco = { type: "emoji", value: v };
+    saveStore();
+    applyTableDeco();
+    syncSettingsUI();
+    toast("桌上小物已更新！");
+  });
+  $("#set-tabledeco-import").addEventListener("click", () => $("#tabledeco-file").click());
+  $("#tabledeco-file").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      const dataUrl = await compressImageToDataUrl(f, 160);
+      store.tableDeco = { type: "image", value: dataUrl };
+      saveStore();
+      applyTableDeco();
+      syncSettingsUI();
+      toast("桌上小物已更新！");
+    } catch (err) {
+      const im = new Image();
+      im.onload = () => {
+        const rd = new FileReader();
+        rd.onload = () => {
+          store.tableDeco = { type: "image", value: rd.result };
+          saveStore(); applyTableDeco(); syncSettingsUI();
+          toast("桌上小物已更新！");
+        };
+        rd.readAsDataURL(f);
+      };
+      im.onerror = () => toast("导入失败，请换一张试试");
+      im.src = URL.createObjectURL(f);
+    }
+    e.target.value = "";
+  });
+  $("#set-tabledeco-reset").addEventListener("click", () => {
+    store.tableDeco = { type: "emoji", value: "☕" };
+    saveStore();
+    applyTableDeco();
+    syncSettingsUI();
+    toast("已恢复默认 ☕");
   });
 
   // 背景
@@ -1778,6 +1894,11 @@ function syncSettingsUI() {
   $("#set-bgm-on").checked = !!store.bgm.on;
   $("#set-bgm-vol").value = store.bgm.volume;
   $("#set-bgm-reset").hidden = !store.bgm.custom;
+  // 桌上小物
+  const tdEmoji = $("#set-tabledeco-emoji");
+  tdEmoji.value = store.tableDeco.type === "emoji" ? store.tableDeco.value : "";
+  tdEmoji.placeholder = store.tableDeco.type === "image" ? "（当前为导入图片）" : "输入 emoji，如 🍰";
+  $("#set-tabledeco-reset").hidden = store.tableDeco.type === "emoji" && store.tableDeco.value === "☕";
   applyModeUI();
   renderQuoteSections();
   renderAccList(1); renderAccList(2);
@@ -1804,6 +1925,7 @@ async function boot() {
   $("#sel-status").textContent = "正在下载小人模型（sd_main.skel）…";
   skelBuf = getEmbed() ? b64ToBytes(getEmbed().skel) : await (await fetch(SKEL_URL)).arrayBuffer();
   applyTheme();
+  applyTableDeco();
   initSettings();
   initChat();
   document.querySelectorAll('input[name="target"]').forEach((r) => {

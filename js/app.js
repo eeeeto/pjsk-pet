@@ -1743,7 +1743,7 @@ function renderQuoteSections() {
       const lines = input.value.split("\n").map((s) => s.trim()).filter(Boolean);
       if (!lines.length) return;
       const list = getQuotes(char.id);
-      if (list.length + lines.length > 200) { toast("词条太多啦，先删掉一些吧"); return; }
+      if (list.length + lines.length > 1000) { toast("词条太多啦（上限 1000 条），先删掉一些吧"); return; }
       list.push(...lines);
       input.value = "";
       saveStore(); render();

@@ -326,6 +326,10 @@ function buildActionPool(data, prefix) {
 const pets = { 1: null, 2: null };
 const GROUND_MIN = 0.72, GROUND_MAX = 0.9;
 
+/* 生成代数：每次 spawnPet 递增；等待期间若代数变化，说明已有更新的生成任务，
+   旧任务必须放弃，否则会把未登记的 spine 残留在舞台上（角色出现多个小人的根源） */
+const spawnGen = { 1: 0, 2: 0 };
+
 async function spawnPet(slot) {
   const cfg = slot === 1 ? store.c1 : store.c2;
   if (!cfg || !cfg.id) return;
@@ -337,8 +341,10 @@ async function spawnPet(slot) {
   const stageEl = $("#stage");
   const W = stageEl.clientWidth, H = stageEl.clientHeight;
 
+  const gen = ++spawnGen[slot];
   destroyPet(slot);
   const atlas = await loadAtlas(ct.spine);
+  if (gen !== spawnGen[slot]) return null; // 等待模型期间已被更新的任务取代
   const data = buildSkeletonData(atlas);
   const spine = new PIXI.spine.Spine(data);
 
@@ -382,6 +388,7 @@ async function spawnPet(slot) {
   scheduleNextAction(pet, rand(2500, 6000));
   // 挂载挂件
   await mountAccessories(pet);
+  if (gen !== spawnGen[slot]) { destroyPet(slot); return null; } // 挂挂件期间又被重建
   return pet;
 }
 
@@ -2206,7 +2213,15 @@ function syncSettingsUI() {
   renderAccList(1); renderAccList(2);
 }
 
-async function rebuildPets() {
+/* 重建串行化：快速连点设置时多个 rebuild 会并发，导致小人残留/重复。
+   用 promise 链保证同一时刻只有一个重建在跑。 */
+let rebuildChain = Promise.resolve();
+function rebuildPets() {
+  rebuildChain = rebuildChain.then(() => doRebuildPets()).catch((e) => { console.error(e); });
+  return rebuildChain;
+}
+
+async function doRebuildPets() {
   destroyPet(1); destroyPet(2);
   if (store.c2 && store.c2.id) {
     if (store.c1.fx === 0.5) store.c1.fx = 0.32;

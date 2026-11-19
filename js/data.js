@@ -397,7 +397,7 @@ const CHARACTERS = [
   },
   {
     id: 13, name: "天马司", unit: "Wonderlands×Showtime", personality: "happy",
-    like: [{ name: "义式水煮鱼", emoji: "🐟" }, { name: "生姜烧肉", emoji: "🍖" }], dislike: [{ name: "青椒", emoji: "🫑" }],
+    like: [{ name: "意式水煮鱼", emoji: "🐟" }, { name: "生姜烧肉", emoji: "🍖" }], dislike: [{ name: "青椒", emoji: "🫑" }],
     costumes: [
       { spine: "sd_13tsukasa_normal", costume: "校服" },
       { spine: "sd_13tsukasa_cloth001", costume: "私服" },

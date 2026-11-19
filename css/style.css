@@ -693,3 +693,25 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 .acc-empty-lib { font-size: 12px; color: #b3a48d; padding: 8px 4px; }
 .qsec h4 { font-size: 14px; color: var(--ui); margin: 10px 0 6px; }
 .qsec { border-top: 2px dashed #eee0cf; padding-top: 6px; margin-top: 8px; }
+
+/* 致命错误横幅 */
+#fatal-banner {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 9999;
+  max-width: 92vw;
+  background: rgba(50, 40, 45, .93);
+  color: #ffe8ef;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  display: flex; align-items: center; gap: 10px;
+}
+#fatal-banner .fatal-text { word-break: break-all; overflow-wrap: anywhere; }
+#fatal-banner .fatal-close {
+  flex: none;
+  background: var(--ui, #f28ab2); color: #fff; border: none;
+  border-radius: 999px; padding: 6px 12px; font-size: 12px;
+}

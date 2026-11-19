@@ -167,19 +167,51 @@ const SKEL_URL = "assets/sd_main.skel";
 let skelBuf = null;
 let app = null;
 
+/* 渲染器安全创建：部分手机系统浏览器（X5/夸克/UC 等内核）WebGL 创建会失败，
+   依次尝试：WebGL(抗锯齿) → WebGL(无抗锯齿) → Canvas 兜底 */
+function createPixiAppSafe(opts) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const tries = [
+    { preference: "webgl", antialias: true, resolution: dpr },
+    { preference: "webgl", antialias: false, resolution: 1 },
+    { preference: "canvas", antialias: false, resolution: 1 },
+  ];
+  let lastErr = null;
+  for (const extra of tries) {
+    try {
+      const a = new PIXI.Application(Object.assign({}, opts, extra));
+      if (a && a.renderer) return a;
+    } catch (e) { lastErr = e; }
+  }
+  throw (lastErr || new Error("无法初始化渲染器"));
+}
+
+/* WebGL 能力检测：小人动画依赖 WebGL（spine 骨骼网格），Canvas 渲染器无法替代 */
+function hasWebGL() {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl"));
+  } catch (e) { return false; }
+}
+
 function initPixi() {
   const stageEl = $("#stage");
-  app = new PIXI.Application({
+  app = createPixiAppSafe({
     backgroundAlpha: 0,
-    antialias: true,
     autoDensity: true,
-    resolution: Math.min(window.devicePixelRatio || 1, 2),
     width: stageEl.clientWidth,
     height: stageEl.clientHeight,
   });
   stageEl.appendChild(app.view);
   app.ticker.add(tickerUpdate);
   window.addEventListener("resize", onResize);
+  // 显存被系统回收/上下文丢失时自动恢复
+  app.view.addEventListener &&
+    app.view.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault();
+      toast("显示组件被系统中断，正在恢复…");
+      setTimeout(() => location.reload(), 900);
+    });
 }
 
 function onResize() {
@@ -1063,8 +1095,8 @@ function drawRoomFurniture(ctx, W, H, theme, posterImg) {
 let thumbApp = null;
 async function makeThumb(entry) {
   if (!thumbApp) {
-    thumbApp = new PIXI.Application({
-      width: 180, height: 200, backgroundAlpha: 0, antialias: true, autoStart: false,
+    thumbApp = createPixiAppSafe({
+      width: 180, height: 200, backgroundAlpha: 0, autoStart: false,
     });
   }
   const atlas = await loadAtlas(entry.spine);
@@ -1206,7 +1238,11 @@ async function enterMain() {
   }
   $("#select-screen").classList.add("hidden");
   $("#main-screen").classList.remove("hidden");
-  initPixi();
+  try {
+    initPixi();
+  } catch (e) {
+    showFatal("渲染组件初始化失败：" + (e && e.message || e) + "。你的浏览器可能不支持 WebGL，请尝试换 Chrome / Via 等浏览器打开。");
+  }
   applyTheme();
   // 布局：单人居中，双人左右
   if (store.c2 && store.c2.id) {
@@ -1215,8 +1251,12 @@ async function enterMain() {
   } else {
     store.c1.fx = 0.5;
   }
-  await spawnPet(1);
-  if (store.c2 && store.c2.id) await spawnPet(2);
+  try {
+    await spawnPet(1);
+    if (store.c2 && store.c2.id) await spawnPet(2);
+  } catch (e) {
+    showFatal("模型加载失败：" + (e && e.message || e) + "。请检查网络后刷新重试。");
+  }
   buildPanels();
 }
 
@@ -2183,6 +2223,10 @@ async function rebuildPets() {
 async function boot() {
   // 离线（file://）时先加载内嵌资源包
   await ensureEmbed();
+  // 尽早检测 WebGL：不支持就直接告诉用户原因与解决办法，而不是黑屏没小人
+  if (!hasWebGL()) {
+    showFatal("当前浏览器无法启动 WebGL 渲染，小人动画无法显示。请尝试：① 用 Chrome / Edge / Via / Firefox 打开本页；② 在系统浏览器的设置里找到「硬件加速 / 加速渲染 / 启用 JavaScript」并开启；③ 清理后台后重启浏览器再试。");
+  }
   // 加载共享骨骼
   $("#sel-status").textContent = "正在下载小人模型（sd_main.skel）…";
   skelBuf = getEmbed() ? b64ToBytes(getEmbed().skel) : await (await fetch(SKEL_URL)).arrayBuffer();
@@ -2213,4 +2257,27 @@ async function boot() {
 boot().catch((e) => {
   console.error(e);
   $("#sel-status").textContent = "加载出错：" + (e && e.message || e);
+  showFatal("加载出错：" + (e && e.message || e));
+});
+
+/* 致命错误横幅：任何未捕获错误都在页面上直接可见，便于用户反馈 */
+let fatalShown = false;
+function showFatal(msg) {
+  if (fatalShown) return;
+  fatalShown = true;
+  const bar = document.createElement("div");
+  bar.id = "fatal-banner";
+  bar.innerHTML = `
+    <div class="fatal-text">⚠️ ${String(msg).slice(0, 220)}</div>
+    <button class="fatal-close">知道了</button>`;
+  bar.querySelector(".fatal-close").addEventListener("click", () => { bar.remove(); fatalShown = false; });
+  document.body.appendChild(bar);
+}
+window.addEventListener("error", (e) => {
+  if (e && e.message && !/renderer/i.test(e.message)) showFatal(e.message);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const r = e && e.reason;
+  const m = r && (r.message || String(r));
+  if (m) showFatal(m);
 });

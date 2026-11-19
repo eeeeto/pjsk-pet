@@ -379,7 +379,7 @@ const CHARACTERS = [
   },
   {
     id: 12, name: "青柳冬弥", unit: "Vivid BAD SQUAD", personality: "cool",
-    like: [{ name: "咖啡", emoji: "☕" }, { name: "曲奇", emoji: "🍪" }], dislike: [{ name: "章鱼", emoji: "🐙" }],
+    like: [{ name: "咖啡", emoji: "☕" }, { name: "曲奇", emoji: "🍪" }], dislike: [{ name: "章鱼", emoji: "🐙" }, { name: "鱿鱼", emoji: "🦑" }],
     costumes: [
       { spine: "sd_12touya_normal", costume: "校服" },
       { spine: "sd_12touya_unit", costume: "组合服装" },

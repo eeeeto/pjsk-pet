@@ -143,7 +143,34 @@ body {
   border-radius: 50%;
   opacity: .85;
 }
-#room.custom-bg #rug, #room.custom-bg #sofa, #room.custom-bg #table, #room.custom-bg .window { display: none; }
+#room.custom-bg #rug, #room.custom-bg #sofa, #room.custom-bg #table, #room.custom-bg .window, #room.custom-bg #poster { display: none; }
+
+/* 墙上海报 */
+#poster {
+  position: absolute; left: 58%; top: 7%;
+  width: 120px; height: 158px;
+  background: #fff; padding: 5px; box-sizing: border-box;
+  border: 5px solid var(--wood, #c98d5f); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.2);
+}
+#poster img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+
+/* 家具布局模式 */
+.furniture { touch-action: none; user-select: none; -webkit-user-select: none; }
+#room.layout-mode #stage { pointer-events: none; }
+#room.layout-mode .furniture {
+  outline: 2px dashed color-mix(in srgb, var(--ui, #f28ab2) 85%, transparent);
+  outline-offset: 3px;
+  cursor: grab;
+}
+#room.layout-mode .furniture:active { cursor: grabbing; }
+.f-badge { display: none; position: absolute; top: -32px; right: -2px; gap: 4px; z-index: 5; }
+#room.layout-mode .f-badge { display: flex; }
+.f-badge button {
+  width: 28px; height: 28px; border: none; border-radius: 8px;
+  background: var(--ui, #f28ab2); color: #fff; font-size: 16px; line-height: 1;
+  cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
 
 /* 沙发 —— 锚定在地面线上，任何屏幕高度都贴着地板 */
 #sofa { position: absolute; left: 4%; bottom: 24%; width: 220px; height: 130px; }

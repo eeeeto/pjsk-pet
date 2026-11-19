@@ -15,6 +15,9 @@ const defaultStore = () => ({
   loveQuotes: true, // 恋爱向词条分组（爱心/亲亲颜文字），默认开启
   bgm: { on: true, volume: 0.4, custom: false }, // 背景音乐（两种模式通用；custom=已导入自定义 MP3）
   tableDeco: { type: "emoji", value: "☕" }, // 桌上小物：emoji 或导入图片（dataURL）
+  layoutMode: false, // 家具布局模式（可拖动/缩放家具）
+  furniture: {},     // 自定义家具位置 { window|poster|rug|sofa|table: { left, top|bottom, s } }
+  posterImage: null, // 海报图片 dataURL（null=默认 assets/poster.png）
 });
 
 let store = defaultStore();
@@ -49,6 +52,10 @@ function normalizeStore() {
   if (store.tableDeco.type !== "emoji" && store.tableDeco.type !== "image") {
     store.tableDeco = { type: "emoji", value: "☕" };
   }
+  // 家具布局兜底
+  if (typeof store.layoutMode !== "boolean") store.layoutMode = false;
+  if (!store.furniture || typeof store.furniture !== "object") store.furniture = {};
+  if (typeof store.posterImage !== "string" && store.posterImage !== null) store.posterImage = null;
   // 模式：非法值回落推角模式；梦向模式只能有角色1
   if (store.mode !== "oshi" && store.mode !== "yume") store.mode = "oshi";
   if (store.mode === "yume") store.c2 = null;
@@ -853,7 +860,14 @@ async function photo(slot) {
     grad.addColorStop(1, theme.floorDark);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
-    drawRoomFurniture(ctx, W, H, theme);
+    // 预加载海报图（与屏幕一致，含自定义海报）
+    let posterImg = null;
+    try {
+      posterImg = new Image();
+      posterImg.src = store.posterImage || "assets/poster.png";
+      await posterImg.decode().catch(() => {});
+    } catch (e) { posterImg = null; }
+    drawRoomFurniture(ctx, W, H, theme, posterImg);
   }
   ctx.drawImage(ex, 0, 0, W, H);
   // 水印
@@ -871,7 +885,7 @@ async function photo(slot) {
   }, "image/png");
 }
 
-/* ---------- 拍照：2D 复刻房间家具（与 CSS 位置一致） ---------- */
+/* ---------- 拍照：按屏幕上家具的实际位置合成（自动跟随布局） ---------- */
 function rr(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -883,96 +897,139 @@ function rr(ctx, x, y, w, h, r) {
   ctx.fill();
 }
 
-function drawRoomFurniture(ctx, W, H, theme) {
-  const mobile = W <= 768;
-  // 地毯（含深色环）
-  const rug = (scale) => {
-    ctx.beginPath();
-    ctx.ellipse(W / 2, H * 0.81, W * 0.31 * scale, H * 0.12 * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
+function drawRoomFurniture(ctx, W, H, theme, posterImg) {
+  const room = $("#room").getBoundingClientRect();
+  // 取屏幕上家具的实际位置（含用户自定义布局），映射到照片坐标系
+  const R = (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    return { x: r.left - room.left, y: r.top - room.top, w: r.width, h: r.height };
   };
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = theme.rugDark || theme.rug;
-  rug(1);
-  ctx.fillStyle = theme.rug;
-  rug(0.56);
-  ctx.globalAlpha = 1;
 
-  // 窗户（左上）
-  const winW = mobile ? 96 : 150, winH = mobile ? 70 : 110;
-  const wx = W * 0.08, wy = H * 0.07;
-  ctx.fillStyle = "rgba(0,0,0,0.08)";
-  rr(ctx, wx + 3, wy + 5, winW, winH, 12);
-  const sky = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
-  sky.addColorStop(0, "#bfe3f2");
-  sky.addColorStop(0.6, "#dff2fb");
-  sky.addColorStop(1, "#eef8fd");
-  ctx.fillStyle = sky;
-  rr(ctx, wx, wy, winW, winH, 10);
-  ctx.strokeStyle = theme.wood || "#c98d5f";
-  ctx.lineWidth = 6;
-  ctx.strokeRect(wx + 3, wy + 3, winW - 6, winH - 6);
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(wx + winW / 2, wy + 3);
-  ctx.lineTo(wx + winW / 2, wy + winH - 3);
-  ctx.stroke();
-  // 窗帘
-  ctx.fillStyle = "#fff";
-  const cw = mobile ? 22 : 30;
-  rr(ctx, wx - 10, wy - 8, cw, winH * 0.8, 8);
-  rr(ctx, wx + winW + 10 - cw, wy - 8, cw, winH * 0.8, 8);
-
-  // 沙发（左，贴地板上端墙面线）
-  const sw = mobile ? 330 : 220, sh = mobile ? 195 : 130;
-  const sx = mobile ? 0 : W * 0.04, sy = H * (1 - (mobile ? 0.23 : 0.24)) - sh;
-  // 靠背
-  ctx.fillStyle = theme.sofa;
-  rr(ctx, sx, sy, sw, sh - sh * 0.23, 24);
-  ctx.fillStyle = theme.sofaDark;
-  rr(ctx, sx, sy + (sh - sh * 0.23) - 8, sw, 8, 4);
-  // 坐垫
-  ctx.fillStyle = theme.sofa;
-  rr(ctx, sx + 8, sy + sh - 56, sw - 16, 42, 12);
-  ctx.fillStyle = theme.sofaDark;
-  rr(ctx, sx + 8, sy + sh - 20, sw - 16, 6, 3);
-  // 扶手
-  ctx.fillStyle = theme.sofaDark;
-  rr(ctx, sx - 10, sy + sh - 70, 34, 64, 14);
-  rr(ctx, sx + sw - 24, sy + sh - 70, 34, 64, 14);
-  // 抱枕
-  ctx.save();
-  ctx.translate(sx + sw * 0.31, sy + sh * 0.34); ctx.rotate(-0.1);
-  ctx.fillStyle = "#fff3c9"; rr(ctx, -22, -22, 44, 44, 10);
-  ctx.restore();
-  ctx.save();
-  ctx.translate(sx + sw * 0.69, sy + sh * 0.34); ctx.rotate(0.12);
-  ctx.fillStyle = "#fdd9c4"; rr(ctx, -22, -22, 44, 44, 10);
-  ctx.restore();
-
-  // 桌子（右，贴地板上端墙面线）
-  const tw = mobile ? 195 : 130, th = mobile ? 180 : 120;
-  const tx = W - tw - (mobile ? 0 : W * 0.07), ty = H * (1 - (mobile ? 0.20 : 0.21)) - th;
-  const wood = theme.wood || "#c98d5f";
-  ctx.fillStyle = "rgba(0,0,0,0.12)";
-  rr(ctx, tx + tw / 2 - 40, ty + th - 8, 80, 10, 6);
-  ctx.fillStyle = wood;
-  rr(ctx, tx + tw / 2 - 7, ty + 18, 14, th - 22, 5);
-  rr(ctx, tx + tw / 2 - 40, ty + th - 14, 80, 10, 6);
-  ctx.beginPath();
-  ctx.ellipse(tx + tw / 2, ty + 13, tw / 2, 13, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const td = store.tableDeco || { type: "emoji", value: "☕" };
-  if (td.type === "image" && tableDecoImg && tableDecoImg.complete && tableDecoImg.naturalWidth > 0) {
-    const s = mobile ? 28 : 38;
-    ctx.drawImage(tableDecoImg, tx + tw / 2 - s / 2, ty - 6 - s, s, s);
-  } else {
-    ctx.fillStyle = "#fff";
-    ctx.font = `${mobile ? 17 : 24}px sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText(td.type === "image" ? "☕" : (td.value || "☕"), tx + tw / 2, ty - 2);
+  // 地毯
+  const rug = R("#rug");
+  if (rug) {
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = theme.rugDark || theme.rug;
+    ctx.beginPath();
+    ctx.ellipse(rug.x + rug.w / 2, rug.y + rug.h / 2, rug.w / 2, rug.h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = theme.rug;
+    ctx.beginPath();
+    ctx.ellipse(rug.x + rug.w / 2, rug.y + rug.h / 2, rug.w * 0.28, rug.h * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
-  ctx.textAlign = "start";
+
+  // 海报（挂在墙上）
+  const po = R("#poster");
+  if (po) {
+    ctx.fillStyle = "rgba(0,0,0,0.10)";
+    rr(ctx, po.x + 3, po.y + 5, po.w, po.h, 8);
+    ctx.fillStyle = "#fff";
+    rr(ctx, po.x - 4, po.y - 4, po.w + 8, po.h + 8, 8);
+    if (posterImg && posterImg.naturalWidth > 0) {
+      const r = Math.max(po.w / posterImg.naturalWidth, po.h / posterImg.naturalHeight);
+      const dw = posterImg.naturalWidth * r, dh = posterImg.naturalHeight * r;
+      ctx.save();
+      ctx.beginPath();
+      rr(ctx, po.x, po.y, po.w, po.h, 4);
+      ctx.clip();
+      ctx.drawImage(posterImg, po.x + (po.w - dw) / 2, po.y + (po.h - dh) / 2, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "#e8e0d4";
+      rr(ctx, po.x, po.y, po.w, po.h, 4);
+    }
+    ctx.strokeStyle = theme.wood || "#c98d5f";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(po.x - 2, po.y - 2, po.w + 4, po.h + 4);
+  }
+
+  // 窗户
+  const win = R("#window");
+  if (win) {
+    const wx = win.x, wy = win.y, winW = win.w, winH = win.h;
+    ctx.fillStyle = "rgba(0,0,0,0.08)";
+    rr(ctx, wx + 3, wy + 5, winW, winH, 12);
+    const sky = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
+    sky.addColorStop(0, "#bfe3f2");
+    sky.addColorStop(0.6, "#dff2fb");
+    sky.addColorStop(1, "#eef8fd");
+    ctx.fillStyle = sky;
+    rr(ctx, wx, wy, winW, winH, 10);
+    ctx.strokeStyle = theme.wood || "#c98d5f";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(wx + 3, wy + 3, winW - 6, winH - 6);
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(wx + winW / 2, wy + 3);
+    ctx.lineTo(wx + winW / 2, wy + winH - 3);
+    ctx.stroke();
+    const cw = Math.max(18, winW * 0.2);
+    ctx.fillStyle = "#fff";
+    rr(ctx, wx - 10, wy - 8, cw, winH * 0.8, 8);
+    rr(ctx, wx + winW + 10 - cw, wy - 8, cw, winH * 0.8, 8);
+  }
+
+  // 沙发
+  const sf = R("#sofa");
+  if (sf) {
+    const k = sf.w / 220; // 缩放系数（基准宽 220px）
+    const sx = sf.x + 10 * k, sy = sf.y + 14 * k, sw = sf.w - 20 * k, sh = sf.h;
+    ctx.fillStyle = theme.sofa;
+    rr(ctx, sx, sy, sw, sh * 0.72, 24 * k);
+    ctx.fillStyle = theme.sofaDark;
+    rr(ctx, sx, sy + sh * 0.72 - 8 * k, sw, 8 * k, 4 * k);
+    ctx.fillStyle = theme.sofa;
+    rr(ctx, sx + 8 * k, sy + sh * 0.57, sw - 16 * k, sh * 0.32, 12 * k);
+    ctx.fillStyle = theme.sofaDark;
+    rr(ctx, sx + 8 * k, sy + sh * 0.85, sw - 16 * k, 6 * k, 3 * k);
+    ctx.fillStyle = theme.sofaDark;
+    rr(ctx, sx - 10 * k, sy + sh * 0.46, 34 * k, 49 * k, 14 * k);
+    rr(ctx, sx + sw - 24 * k, sy + sh * 0.46, 34 * k, 49 * k, 14 * k);
+    ctx.save();
+    ctx.translate(sx + sw * 0.31, sy + sh * 0.34); ctx.rotate(-0.1);
+    ctx.fillStyle = "#fff3c9"; rr(ctx, -22 * k, -22 * k, 44 * k, 44 * k, 10 * k);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(sx + sw * 0.69, sy + sh * 0.34); ctx.rotate(0.12);
+    ctx.fillStyle = "#fdd9c4"; rr(ctx, -22 * k, -22 * k, 44 * k, 44 * k, 10 * k);
+    ctx.restore();
+  }
+
+  // 桌子
+  const tb = R("#table");
+  if (tb) {
+    const k = tb.w / 130; // 缩放系数（基准宽 130px）
+    const tx = tb.x, ty = tb.y, tw = tb.w, th = tb.h;
+    const wood = theme.wood || "#c98d5f";
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    rr(ctx, tx + tw / 2 - 40 * k, ty + th - 8 * k, 80 * k, 10 * k, 6 * k);
+    ctx.fillStyle = wood;
+    rr(ctx, tx + tw / 2 - 7 * k, ty + 18 * k, 14 * k, th - 22 * k, 5 * k);
+    rr(ctx, tx + tw / 2 - 40 * k, ty + th - 14 * k, 80 * k, 10 * k, 6 * k);
+    ctx.beginPath();
+    ctx.ellipse(tx + tw / 2, ty + 13 * k, tw / 2, 13 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 桌上小物（跟随桌子的实际位置）
+  const deco = R("#table-deco");
+  const td = store.tableDeco || { type: "emoji", value: "☕" };
+  if (deco) {
+    if (td.type === "image" && tableDecoImg && tableDecoImg.complete && tableDecoImg.naturalWidth > 0) {
+      ctx.drawImage(tableDecoImg, deco.x, deco.y, deco.w, deco.h);
+    } else {
+      ctx.fillStyle = "#fff";
+      ctx.font = `${Math.max(14, Math.round(deco.h * 0.85))}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(td.value || "☕", deco.x + deco.w / 2, deco.y + deco.h * 0.85);
+      ctx.textAlign = "start";
+    }
+  }
 }
 
 
@@ -1437,6 +1494,142 @@ function applyTableDeco() {
   }
 }
 
+/* ---------- 家具布局模式（通用） ---------- */
+// 窗户/海报锚定墙面上方（top%），沙发/桌子/地毯锚定地面（bottom%）
+const FURN_KEYS = ["window", "poster", "rug", "sofa", "table"];
+const FURN_ANCHOR = { window: "top", poster: "top", rug: "top", sofa: "bottom", table: "bottom" };
+const FURN_MOBILE_SCALE = { sofa: 1.5, table: 1.5 };
+
+function furnEl(key) { return key === "window" ? $("#window") : $("#" + key); }
+
+// 首次拖动/缩放时，从当前渲染位置生成布局条目
+function seedEntry(key) {
+  const el = furnEl(key);
+  const rect = el.getBoundingClientRect();
+  const room = $("#room").getBoundingClientRect();
+  const e = { s: window.innerWidth <= 768 && FURN_MOBILE_SCALE[key] ? FURN_MOBILE_SCALE[key] : 1 };
+  if (FURN_ANCHOR[key] === "bottom") {
+    e.left = ((rect.left - room.left) / room.width) * 100;
+    e.bottom = ((room.bottom - rect.bottom) / room.height) * 100;
+  } else {
+    e.left = ((rect.left - room.left) / room.width) * 100;
+    e.top = ((rect.top - room.top) / room.height) * 100;
+  }
+  store.furniture[key] = e;
+  return e;
+}
+
+function applyFurnitureLayout() {
+  const fl = store.furniture || {};
+  for (const key of FURN_KEYS) {
+    const el = furnEl(key);
+    if (!el) continue;
+    const e = fl[key];
+    if (!e) {
+      el.style.left = el.style.top = el.style.bottom = el.style.right = el.style.transform = "";
+      continue;
+    }
+    el.style.right = "";
+    el.style.left = e.left + "%";
+    if (FURN_ANCHOR[key] === "bottom") {
+      el.style.top = "";
+      el.style.bottom = e.bottom + "%";
+    } else {
+      el.style.bottom = "";
+      el.style.top = e.top + "%";
+    }
+    let tf = key === "rug" ? "translate(-50%, -50%)" : "";
+    tf += (tf ? " " : "") + `scale(${e.s})`;
+    el.style.transform = tf;
+  }
+  const pi = $("#poster-img");
+  if (pi) pi.src = store.posterImage || "assets/poster.png";
+}
+
+function setLayoutMode(on) {
+  store.layoutMode = !!on;
+  saveStore();
+  $("#room").classList.toggle("layout-mode", !!on);
+  if (on) toast("布局模式：拖动移动家具，＋/－ 缩放，点海报可换图");
+}
+
+function setupFurniture() {
+  for (const key of FURN_KEYS) {
+    const el = furnEl(key);
+    if (!el || el.dataset.furnInit) continue;
+    el.dataset.furnInit = "1";
+    // 缩放徽标（＋/－）
+    const badge = document.createElement("div");
+    badge.className = "f-badge";
+    const minus = document.createElement("button");
+    minus.textContent = "−";
+    const plus = document.createElement("button");
+    plus.textContent = "＋";
+    badge.append(minus, plus);
+    el.appendChild(badge);
+    const getS = () => (store.furniture[key] ? store.furniture[key].s : (window.innerWidth <= 768 && FURN_MOBILE_SCALE[key] ? FURN_MOBILE_SCALE[key] : 1));
+    const setS = (s) => {
+      const e = store.furniture[key] || seedEntry(key);
+      e.s = Math.max(0.4, Math.min(3, s));
+      saveStore();
+      applyFurnitureLayout();
+    };
+    minus.addEventListener("click", (ev) => { ev.stopPropagation(); setS(getS() - 0.1); });
+    plus.addEventListener("click", (ev) => { ev.stopPropagation(); setS(getS() + 0.1); });
+
+    // 拖动（仅布局模式生效）
+    let st = null;
+    el.addEventListener("pointerdown", (e) => {
+      if (!store.layoutMode) return;
+      if (e.target.closest(".f-badge")) return;
+      // 注意：不要 preventDefault，否则会吞掉后续 click（海报点击换图依赖它）；
+      // 滚动/选中已由 CSS touch-action 与 user-select 禁用
+      const room = $("#room").getBoundingClientRect();
+      st = { px: e.clientX, py: e.clientY, rect: el.getBoundingClientRect(), room, moved: false, entry: store.furniture[key] || seedEntry(key) };
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!st) return;
+      const dx = e.clientX - st.px, dy = e.clientY - st.py;
+      if (!st.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      st.moved = true;
+      el.dataset.dragMoved = "1";
+      const { room, rect, entry } = st;
+      entry.left = Math.max(-10, Math.min(96, ((rect.left - room.left + dx) / room.width) * 100));
+      if (FURN_ANCHOR[key] === "bottom") {
+        entry.bottom = Math.max(-5, Math.min(90, ((room.bottom - (rect.bottom + dy)) / room.height) * 100));
+      } else {
+        entry.top = Math.max(-5, Math.min(92, ((rect.top - room.top + dy) / room.height) * 100));
+      }
+      saveStore();
+      applyFurnitureLayout();
+    });
+    const endDrag = () => { st = null; };
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", () => { st = null; });
+    // 点海报 → 换图（click 事件带用户激活手势，才能打开文件选择框）
+    el.addEventListener("click", () => {
+      if (!store.layoutMode || key !== "poster") return;
+      if (el.dataset.dragMoved === "1") { delete el.dataset.dragMoved; return; }
+      $("#poster-file").click();
+    });
+  }
+}
+
+async function importPosterFile(file) {
+  if (!file) return;
+  try {
+    const dataUrl = await compressImageToDataUrl(file, 600);
+    store.posterImage = dataUrl;
+    saveStore();
+    applyFurnitureLayout();
+    syncSettingsUI();
+    toast("海报已更新！");
+  } catch (err) {
+    toast("导入失败，请换一张试试");
+  }
+}
+
 function initSettings() {
   const modal = $("#settings-modal");
   $("#btn-settings").addEventListener("click", () => { syncSettingsUI(); modal.classList.remove("hidden"); });
@@ -1608,6 +1801,31 @@ function initSettings() {
     applyTableDeco();
     syncSettingsUI();
     toast("已恢复默认 ☕");
+  });
+
+  // 家具布局（通用）
+  setupFurniture();
+  applyFurnitureLayout();
+  $("#room").classList.toggle("layout-mode", !!store.layoutMode);
+  $("#set-layout").addEventListener("change", (e) => setLayoutMode(e.target.checked));
+  $("#set-layout-reset").addEventListener("click", () => {
+    store.furniture = {};
+    saveStore();
+    applyFurnitureLayout();
+    syncSettingsUI();
+    toast("家具布局已恢复默认");
+  });
+  $("#set-poster-import").addEventListener("click", () => $("#poster-file").click());
+  $("#poster-file").addEventListener("change", (e) => {
+    importPosterFile(e.target.files[0]);
+    e.target.value = "";
+  });
+  $("#set-poster-reset").addEventListener("click", () => {
+    store.posterImage = null;
+    saveStore();
+    applyFurnitureLayout();
+    syncSettingsUI();
+    toast("已恢复默认海报");
   });
 
   // 背景
@@ -1899,6 +2117,9 @@ function syncSettingsUI() {
   tdEmoji.value = store.tableDeco.type === "emoji" ? store.tableDeco.value : "";
   tdEmoji.placeholder = store.tableDeco.type === "image" ? "（当前为导入图片）" : "输入 emoji，如 🍰";
   $("#set-tabledeco-reset").hidden = store.tableDeco.type === "emoji" && store.tableDeco.value === "☕";
+  // 家具布局
+  $("#set-layout").checked = !!store.layoutMode;
+  $("#set-poster-reset").hidden = !store.posterImage;
   applyModeUI();
   renderQuoteSections();
   renderAccList(1); renderAccList(2);

@@ -27,13 +27,14 @@
   <!-- 主界面 -->
   <div id="main-screen" class="hidden">
     <div id="room">
-      <div class="wall-deco window">
+      <div id="window" class="wall-deco window furniture">
         <div class="win-frame"></div>
         <div class="curtain l"></div>
         <div class="curtain r"></div>
       </div>
-      <div id="rug"></div>
-      <div id="sofa">
+      <div id="poster" class="furniture"><img id="poster-img" alt="海报"></div>
+      <div id="rug" class="furniture"></div>
+      <div id="sofa" class="furniture">
         <div class="sofa-back"></div>
         <div class="sofa-seat"></div>
         <div class="sofa-arm l"></div>
@@ -41,7 +42,7 @@
         <div class="cushion c1"></div>
         <div class="cushion c2"></div>
       </div>
-      <div id="table">
+      <div id="table" class="furniture">
         <div class="table-top"></div>
         <div class="table-leg"></div>
         <div class="teacup" id="table-deco">☕</div>
@@ -93,6 +94,14 @@
           <button class="btn small ghost" id="set-tabledeco-reset">恢复 ☕</button>
         </div>
         <input type="file" id="tabledeco-file" accept="image/*" hidden>
+        <div class="row"><label>家具布局</label><input type="checkbox" id="set-layout"></div>
+        <div class="row">
+          <label>墙上海报</label>
+          <button class="btn small" id="set-poster-import">导入图片</button>
+          <button class="btn small ghost" id="set-poster-reset">恢复默认</button>
+        </div>
+        <div class="row"><label></label><button class="btn small ghost" id="set-layout-reset">恢复默认布局</button></div>
+        <input type="file" id="poster-file" accept="image/*" hidden>
       </section>
 
       <section>

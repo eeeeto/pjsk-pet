@@ -62,7 +62,33 @@ body {
   position: relative;
 }
 .char-card:hover { transform: translateY(-3px); }
-.char-card.same-char { opacity: .5; }
+.char-card.same-char {
+  opacity: .45;
+  filter: grayscale(.65);
+  cursor: not-allowed;
+}
+.char-card.same-char::after {
+  content: "🔒 同一角色";
+  position: absolute;
+  top: 6px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(60,50,55,.82);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.char-card.shake { animation: cardShake .38s; }
+@keyframes cardShake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
 .char-card .thumb-box { height: 130px; display: flex; align-items: flex-end; justify-content: center; }
 .char-card .thumb-box img { max-height: 128px; pointer-events: none; }
 .thumb-loading { color: #cbb; font-size: 22px; padding-bottom: 50px; }

@@ -59,6 +59,14 @@ function normalizeStore() {
   // 模式：非法值回落推角模式；梦向模式只能有角色1
   if (store.mode !== "oshi" && store.mode !== "yume") store.mode = "oshi";
   if (store.mode === "yume") store.c2 = null;
+  // 角色 id 统一成数字（旧存档可能是字符串，会导致"同角色"判断失效）
+  for (const cfg of [store.c1, store.c2]) {
+    if (cfg && cfg.id != null && cfg.id !== "") cfg.id = +cfg.id;
+  }
+  // 同一角色（含同一套/不同服装）绝不能双人同时出场
+  if (store.c2 && store.c2.id && (!CHARACTERS.some((c) => c.id === store.c2.id) || (store.c1 && store.c2.id === store.c1.id))) {
+    store.c2 = null;
+  }
   // 服装存档迁移：cfg.spine 缺失或不属于该角色时，回落到该角色第一套服装
   for (const cfg of [store.c1, store.c2]) {
     if (cfg && cfg.id) {
@@ -120,7 +128,24 @@ function getQuotes(charId) {
   return store.charQuotes[charId];
 }
 
+/* 角色槽位唯一性校验：角色1 与角色2 不能是同一角色（同一套/不同服装都不行）
+   返回 true 表示做了修正（角色2 被移除），调用方可据此刷新 UI */
+function sanitizeRoster() {
+  let changed = false;
+  if (store.c1 && store.c1.id != null && store.c1.id !== "") store.c1.id = +store.c1.id;
+  if (store.c2) {
+    if (store.c2.id != null && store.c2.id !== "") store.c2.id = +store.c2.id;
+    if (!store.c2.id || !CHARACTERS.some((c) => c.id === store.c2.id)) { store.c2 = null; changed = true; }
+  }
+  if (store.mode === "yume" && store.c2) { store.c2 = null; changed = true; }
+  if (store.c2 && store.c1 && store.c1.id && store.c2.id === store.c1.id) {
+    store.c2 = null; changed = true;
+  }
+  return changed;
+}
+
 function saveStore() {
+  sanitizeRoster();
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
 }
 
@@ -272,6 +297,8 @@ const GROUND_MIN = 0.72, GROUND_MAX = 0.9;
 async function spawnPet(slot) {
   const cfg = slot === 1 ? store.c1 : store.c2;
   if (!cfg || !cfg.id) return;
+  // 保险：角色2 绝不能与角色1 是同一角色（同一套或不同服装都不行）
+  if (slot === 2 && store.c1 && store.c1.id && +cfg.id === +store.c1.id) return;
   const char = charById(cfg.id);
   const ct = costumeEntryOf(cfg);
   cfg.spine = ct.spine; // 回写，保证存档一致
@@ -1134,15 +1161,22 @@ function onCardClick(entry, card) {
     selectState.target = 2;
     document.querySelector('input[name="target"][value="2"]').checked = true;
   } else {
-    // 角色2：再次点击同一套服装则取消
+    // 角色2：必须先有角色1
+    if (!store.c1.id) { toast("请先给角色1选一套服装～"); return; }
+    // 同一个角色不能同时出场（同一套服装、不同服装都不行）
+    if (entry.char.id === store.c1.id) {
+      toast("同一个角色不能同时出场两套服装哦！");
+      card.classList.remove("shake");
+      void card.offsetWidth;
+      card.classList.add("shake");
+      setTimeout(() => card.classList.remove("shake"), 420);
+      return;
+    }
+    // 再次点击同一套服装则取消
     if (store.c2 && store.c2.spine === entry.spine) store.c2 = null;
     else store.c2 = { id: entry.char.id, spine: entry.spine, flip: false, drag: true, scale: 1, fx: 0.68, fy: 0.8, accessories: [] };
-    // 同一个角色不能同时出场两套服装
-    if (store.c2 && store.c2.id === store.c1.id) {
-      toast("同一个角色不能同时出场两套服装哦！");
-      store.c2 = null;
-    }
   }
+  sanitizeRoster();
   saveStore();
   refreshCardSelection();
 }
@@ -1154,9 +1188,11 @@ function refreshCardSelection() {
     const sp = card.dataset.spine;
     card.classList.toggle("sel-1", sp === s1);
     card.classList.toggle("sel-2", sp === s2);
-    // 与角色1相同角色的其他服装卡片变暗提示（不能同时出场）
+    // 选角色2时，角色1的同角色服装一律锁住（不能同时出场）
     const entry = COSTUME_LIST.find((x) => x.spine === sp);
-    card.classList.toggle("same-char", !!store.c1.id && entry && entry.char.id === store.c1.id);
+    const locked = selectState.target === 2 && !!store.c1.id && entry && entry.char.id === store.c1.id;
+    card.classList.toggle("same-char", !!locked);
+    card.setAttribute("aria-disabled", locked ? "true" : "false");
   });
   $("#btn-start").disabled = !s1;
 }
@@ -1164,8 +1200,10 @@ function refreshCardSelection() {
 /* ---------- 主界面 ---------- */
 async function enterMain() {
   // 保险：梦向模式下只有角色1；同一角色（含不同服装）不能同时出场
-  if (store.mode === "yume") store.c2 = null;
-  if (store.c2 && store.c2.id === store.c1.id) store.c2 = null;
+  if (sanitizeRoster()) {
+    saveStore();
+    toast("角色2 与角色1 是同一个角色，已自动移除");
+  }
   $("#select-screen").classList.add("hidden");
   $("#main-screen").classList.remove("hidden");
   initPixi();
@@ -1664,7 +1702,7 @@ function initSettings() {
     syncSettingsUI();
   });
   bindSlotToggles(1);
-  fillCharSelect($("#set-c2-char"), true);
+  fillCharSelect($("#set-c2-char"), true, store.c1.id || 0);
   $("#set-c2-char").addEventListener("change", async (e) => {
     const v = +e.target.value;
     if (!v) store.c2 = null;
@@ -1869,9 +1907,11 @@ function initSettings() {
   });
 }
 
-function fillCharSelect(sel, optional) {
+function fillCharSelect(sel, optional, excludeId) {
   sel.innerHTML = optional ? `<option value="0">（不使用）</option>` : "";
   CHARACTERS.forEach((c) => {
+    // 角色2 的下拉里直接去掉角色1 的角色：从根上避免"同一角色两套服装"
+    if (excludeId && c.id === excludeId) return;
     const opt = document.createElement("option");
     opt.value = c.id;
     opt.textContent = `${c.name}（${c.unit}）`;
@@ -2095,6 +2135,7 @@ function renderQuoteSections() {
 
 function syncSettingsUI() {
   const c1 = store.c1, c2 = store.c2 || { id: 0, flip: false, drag: true, scale: 1 };
+  fillCharSelect($("#set-c2-char"), true, c1.id || 0); // 每次同步都排除角色1
   $("#set-c1-char").value = c1.id || "";
   fillCostumeSelect($("#set-c1-costume"), c1.id, c1.spine);
   $("#set-c1-flip").checked = !!c1.flip;
@@ -2150,7 +2191,10 @@ async function boot() {
   initSettings();
   initChat();
   document.querySelectorAll('input[name="target"]').forEach((r) => {
-    r.addEventListener("change", (e) => { selectState.target = +e.target.value; });
+    r.addEventListener("change", (e) => {
+      selectState.target = +e.target.value;
+      refreshCardSelection();
+    });
   });
   $("#btn-start").addEventListener("click", () => { if (!store.c1.id) return; enterMain(); });
   $("#btn-photo").addEventListener("click", () => photo(1));
